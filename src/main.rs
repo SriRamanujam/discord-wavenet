@@ -109,10 +109,12 @@ impl VoiceEventHandler for ChannelDurationNotifier {
 #[command]
 #[only_in(guilds)]
 async fn join(ctx: &Context, msg: &Message) -> CommandResult {
-    join_inner(ctx, msg).await
+    do_join(ctx, msg).await
 }
 
-async fn join_inner(ctx: &Context, msg: &Message) -> CommandResult {
+/// Inner function for joining mostly so that I can have the say command
+/// automatically try to join a channel if it's not already in one.
+async fn do_join(ctx: &Context, msg: &Message) -> CommandResult {
     let guild = msg
         .guild(&ctx.cache)
         .await
@@ -250,7 +252,7 @@ impl VoiceEventHandler for TrackCleanup {
 #[only_in(guilds)]
 async fn say(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
     // try to join the channel the user's in.
-    join_inner(ctx, msg).await?;
+    do_join(ctx, msg).await?;
 
     let manager = songbird::get(ctx)
         .await

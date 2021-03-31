@@ -109,7 +109,14 @@ impl VoiceEventHandler for ChannelDurationNotifier {
 #[command]
 #[only_in(guilds)]
 async fn join(ctx: &Context, msg: &Message) -> CommandResult {
-    let guild = msg.guild(&ctx.cache).await.unwrap();
+    join_inner(ctx, msg).await
+}
+
+async fn join_inner(ctx: &Context, msg: &Message) -> CommandResult {
+    let guild = msg
+        .guild(&ctx.cache)
+        .await
+        .ok_or_else(|| anyhow!("Could not retrieve server info"))?;
     let guild_id = guild.id;
 
     let channel_id = match guild
@@ -129,9 +136,17 @@ async fn join(ctx: &Context, msg: &Message) -> CommandResult {
         .expect("Songbird context should be there")
         .clone();
 
+    {
+        if let Some(c) = ctx.data.read().await.get::<CurrentVoiceChannel>() {
+            if *c == channel_id {
+                return Ok(());
+            }
+        }
+    }
+
     let (handle_lock, success) = manager.join(guild_id, channel_id).await;
 
-    if let Ok(_channel) = success {
+    if let Ok(_) = success {
         let chan_id = msg.channel_id;
         let mut handle = handle_lock.lock().await;
 
@@ -143,6 +158,11 @@ async fn join(ctx: &Context, msg: &Message) -> CommandResult {
                 http: ctx.http.clone(),
             },
         );
+
+        ctx.data
+            .write()
+            .await
+            .insert::<CurrentVoiceChannel>(channel_id);
     } else {
         msg.channel_id
             .say(&ctx.http, "Could not join voice channel.")
@@ -155,7 +175,10 @@ async fn join(ctx: &Context, msg: &Message) -> CommandResult {
 #[command]
 #[only_in(guilds)]
 async fn leave(ctx: &Context, msg: &Message) -> CommandResult {
-    let guild = msg.guild(&ctx.cache).await.unwrap();
+    let guild = msg
+        .guild(&ctx.cache)
+        .await
+        .ok_or_else(|| anyhow!("Could not retrieve server info"))?;
     let guild_id = guild.id;
 
     let manager = songbird::get(ctx)
@@ -170,6 +193,8 @@ async fn leave(ctx: &Context, msg: &Message) -> CommandResult {
                 .say(&ctx.http, format!("Failed: {:?}", e))
                 .await?;
         }
+
+        ctx.data.write().await.remove::<CurrentVoiceChannel>();
 
         msg.channel_id.say(&ctx.http, "Left voice channel").await?;
     } else {
@@ -193,12 +218,18 @@ impl VoiceEventHandler for TrackCleanup {
 #[command]
 #[only_in(guilds)]
 async fn say(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
+    // try to join the channel the user's in.
+    join_inner(ctx, msg).await?;
+
     let manager = songbird::get(ctx)
         .await
         .expect("Songbird context should be there")
         .clone();
 
-    let guild = msg.guild(&ctx.cache).await.ok_or_else(|| anyhow!("Could not fetch guild"))?;
+    let guild = msg
+        .guild(&ctx.cache)
+        .await
+        .ok_or_else(|| anyhow!("Could not fetch guild"))?;
     let guild_id = guild.id;
 
     if let Some(g_service) = ctx.data.write().await.get_mut::<TtsService>() {
@@ -256,6 +287,12 @@ impl EventHandler for Handler {
     async fn ready(&self, _: Context, ready: Ready) {
         tracing::info!("{} is connected!", ready.user.name);
     }
+}
+
+struct CurrentVoiceChannel;
+
+impl TypeMapKey for CurrentVoiceChannel {
+    type Value = ChannelId;
 }
 
 struct TtsService;

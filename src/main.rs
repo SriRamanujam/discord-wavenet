@@ -26,7 +26,6 @@ use serenity::{
         },
         StandardFramework,
     },
-    http::Http,
     model::{channel::Message, id::ChannelId, prelude::Ready},
     prelude::TypeMapKey,
     Client,
@@ -75,25 +74,9 @@ async fn create_google_api_client(
     Ok(service)
 }
 
-async fn readyz() -> anyhow::Result<()> {
-    // check google api readiness by listing the voices
-    let api_path = std::env::var("GOOGLE_API_CREDENTIALS")
-        .context("Could not find env var GOOGLE_API_CREDENTIALS")?;
-    let mut g_service = create_google_api_client(api_path).await?;
-
-    g_service
-        .list_voices(ListVoicesRequest {
-            language_code: "en-US".to_string(),
-        })
-        .await?;
-
-    Ok(())
-}
-
+#[derive(Default)]
 struct ChannelDurationNotifier {
-    chan_id: ChannelId,
     count: Arc<AtomicUsize>,
-    http: Arc<Http>,
 }
 
 #[async_trait]
@@ -154,16 +137,11 @@ async fn do_join(ctx: &Context, msg: &Message) -> CommandResult {
     let (handle_lock, success) = manager.join(guild_id, channel_id).await;
 
     if let Ok(_) = success {
-        let chan_id = msg.channel_id;
         let mut handle = handle_lock.lock().await;
 
         handle.add_global_event(
             Event::Periodic(Duration::from_secs(60), None),
-            ChannelDurationNotifier {
-                chan_id,
-                count: Default::default(),
-                http: ctx.http.clone(),
-            },
+            ChannelDurationNotifier::default()
         );
 
         ctx.data
@@ -314,6 +292,25 @@ async fn say(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
     Ok(())
 }
 
+#[command]
+#[only_in(guilds)]
+async fn skip(ctx: &Context, msg: &Message) -> CommandResult {
+    let manager = songbird::get(ctx)
+        .await
+        .expect("Songbird context should be in there")
+        .clone();
+    let guild = msg
+        .guild(&ctx.cache)
+        .await
+        .ok_or_else(|| anyhow!("Could not fetch guild"))?;
+
+    if let Some(handler_lock) = manager.get(guild.id) {
+        handler_lock.lock().await.queue().skip()?;
+    }
+
+    Ok(())
+}
+
 // TODO: what is this
 struct ReadyNotifier;
 
@@ -337,7 +334,7 @@ impl TypeMapKey for TtsService {
 }
 
 #[group]
-#[commands(say, join, leave)]
+#[commands(say, join, leave, skip)]
 struct General;
 
 #[tokio::main]

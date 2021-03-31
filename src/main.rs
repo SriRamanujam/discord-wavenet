@@ -126,7 +126,7 @@ async fn join_inner(ctx: &Context, msg: &Message) -> CommandResult {
     {
         Some(c) => c,
         None => {
-            msg.reply_mention(ctx, "Not in a voice channel").await?;
+            msg.reply(ctx, "Not in a voice channel").await?;
             return Ok(());
         }
     };
@@ -137,10 +137,15 @@ async fn join_inner(ctx: &Context, msg: &Message) -> CommandResult {
         .clone();
 
     {
+        // check to see if we are already in the same channel as the user. If we are,
+        // return without doing anything further. If we are in a different voice channel
+        // than the user, tell them that we are already in a voice channel.
+        // If we are not in a voice channel at all, we continue onwards.
         if let Some(c) = ctx.data.read().await.get::<CurrentVoiceChannel>() {
-            if *c == channel_id {
-                return Ok(());
+            if *c != channel_id {
+                msg.reply(ctx, "Already in another voice channel.").await?;
             }
+            return Ok(());
         }
     }
 
@@ -181,6 +186,19 @@ async fn leave(ctx: &Context, msg: &Message) -> CommandResult {
         .ok_or_else(|| anyhow!("Could not retrieve server info"))?;
     let guild_id = guild.id;
 
+    let channel_id = match guild
+        .voice_states
+        .get(&msg.author.id)
+        .and_then(|vs| vs.channel_id)
+    {
+        Some(c) => c,
+        None => {
+            msg.reply(ctx, "You must be in a voice channel to make me leave one")
+                .await?;
+            return Ok(());
+        }
+    };
+
     let manager = songbird::get(ctx)
         .await
         .expect("Songbird Voice client placed in at initialisation.")
@@ -188,13 +206,26 @@ async fn leave(ctx: &Context, msg: &Message) -> CommandResult {
     let has_handler = manager.get(guild_id).is_some();
 
     if has_handler {
+        let mut data = ctx.data.write().await;
+
+        if let Some(c) = data.get::<CurrentVoiceChannel>() {
+            if *c != channel_id {
+                msg.reply(
+                    ctx,
+                    "You must be in the same voice channel as me to make me leave.",
+                )
+                .await?;
+                return Ok(());
+            }
+        }
+
         if let Err(e) = manager.remove(guild_id).await {
             msg.channel_id
                 .say(&ctx.http, format!("Failed: {:?}", e))
                 .await?;
         }
 
-        ctx.data.write().await.remove::<CurrentVoiceChannel>();
+        data.remove::<CurrentVoiceChannel>();
 
         msg.channel_id.say(&ctx.http, "Left voice channel").await?;
     } else {
@@ -232,7 +263,7 @@ async fn say(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
         .ok_or_else(|| anyhow!("Could not fetch guild"))?;
     let guild_id = guild.id;
 
-    if let Some(g_service) = ctx.data.write().await.get_mut::<TtsService>() {
+    if let Some(tts_service) = ctx.data.write().await.get_mut::<TtsService>() {
         let req = SynthesizeSpeechRequest {
             input: Some(SynthesisInput {
                 input_source: Some(InputSource::Text(args.message().to_string())),
@@ -252,13 +283,12 @@ async fn say(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
             }),
         };
 
-        let res = g_service
+        let res = tts_service
             .synthesize_speech(req)
             .await
             .map_err(|s| anyhow!("Could not make TTS API call: {}", s.message()))?;
 
         if let Some(handler_lock) = manager.get(guild_id) {
-            let mut handler = handler_lock.lock().await;
             let response = res.into_inner();
 
             let mut file = tempfile::NamedTempFile::new()?;
@@ -272,7 +302,10 @@ async fn say(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
 
             track_handle.add_event(Event::Track(TrackEvent::End), TrackCleanup(file))?;
 
-            handler.enqueue(track);
+            {
+                let mut handler = handler_lock.lock().await;
+                handler.enqueue(track);
+            }
         }
     }
 
@@ -280,10 +313,10 @@ async fn say(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
 }
 
 // TODO: what is this
-struct Handler;
+struct ReadyNotifier;
 
 #[async_trait]
-impl EventHandler for Handler {
+impl EventHandler for ReadyNotifier {
     async fn ready(&self, _: Context, ready: Ready) {
         tracing::info!("{} is connected!", ready.user.name);
     }
@@ -321,7 +354,7 @@ async fn main() -> anyhow::Result<()> {
         .group(&GENERAL_GROUP);
 
     let mut client = Client::builder(&discord_token)
-        .event_handler(Handler)
+        .event_handler(ReadyNotifier)
         .framework(framework)
         .register_songbird()
         .await

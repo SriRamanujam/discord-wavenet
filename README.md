@@ -38,18 +38,6 @@ cargo run --release
 docker run -e "DISCORD_TOKEN=<Discord token goes here>" -e "GOOGLE_API_CREDENTIALS=<Path to file containing Google API JSON goes here>" --rm -it ghcr.io/sriramanujam/discord-wavenet:latest
 ```
 
-### Advanced usage
-
-For those of you who would like to deploy this into a Kubernetes cluster, rest assured that I am one of you! Therefore,
-the Docker container should run just fine in k8s, provided you pass it the environment variables it requires. As an added
-bonus, the bot implements liveness and readiness checks on a localhost-only webserver for your convenience.
-
-```sh
-# as an example to guide you, curl is not actually shipped inside the container. You can use the httpGet check instead.
-curl -o- http://localhost:8080/livez?verbose
-curl -o- http://localhost:8080/readyz?verbose
-```
-
 ## Doesn't using Wavenet cost money?
 
 Yes, but the first million characters a month are free. This is why I have no intention of hosting this bot publicly somewhere. It would most likely bankrupt me. Anyone interested in hosting the bot on their own Discord servers should judge very carefully whether they will be able to consistently stay under the 1 million character limit.

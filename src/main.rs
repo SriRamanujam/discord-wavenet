@@ -1,6 +1,6 @@
 use std::{
     io::Write,
-    path::PathBuf,
+    path::Path,
     sync::{
         atomic::{AtomicUsize, Ordering},
         Arc,
@@ -26,7 +26,11 @@ use serenity::{
         },
         StandardFramework,
     },
-    model::{channel::Message, id::ChannelId, prelude::Ready},
+    model::{
+        channel::Message,
+        id::{ChannelId, GuildId},
+        prelude::Ready,
+    },
     prelude::TypeMapKey,
     Client,
 };
@@ -39,11 +43,19 @@ use tonic::{
     Request,
 };
 
-async fn create_google_api_client(
-    api_path: impl Into<PathBuf>,
+const NOT_IN_VOICE_CHANNEL_MESSAGE: &str =
+    "Can't tell me what to do if you're not in a voice channel!";
+const NOT_IN_SAME_VOICE_CHANNEL_MESSAGE: &str =
+    "Can't tell me what to do if you're not in the same voice channel!";
+
+#[tracing::instrument(skip(api_path), err)]
+async fn create_google_api_client<C: AsRef<Path> + std::fmt::Debug>(
+    api_path: C,
 ) -> anyhow::Result<TextToSpeechClient<Channel>> {
+    tracing::debug!("Loading Google API credentials from {:?}", api_path);
+
     let token = Builder::new()
-        .file(api_path)
+        .file(api_path.as_ref())
         .build()
         .context("Could not load Google API credentials")?;
 
@@ -74,6 +86,32 @@ async fn create_google_api_client(
     Ok(service)
 }
 
+#[tracing::instrument(skip(svc))]
+async fn get_voices(svc: &mut TextToSpeechClient<Channel>) -> anyhow::Result<Vec<String>> {
+    tracing::debug!("Fetching list of Wavenet voices from Google...");
+    let req = ListVoicesRequest {
+        language_code: "en-US".to_string(),
+    };
+
+    let res = svc.list_voices(req).await?.into_inner();
+
+    let voices = res
+        .voices
+        .into_iter()
+        .filter_map(|v| {
+            if v.name.contains("Wavenet") {
+                Some(v.name)
+            } else {
+                None
+            }
+        })
+        .collect::<Vec<_>>();
+
+    tracing::info!("Loading bot with {} voices", voices.len());
+
+    Ok(voices)
+}
+
 #[derive(Default)]
 struct ChannelDurationNotifier {
     count: Arc<AtomicUsize>,
@@ -92,12 +130,6 @@ impl VoiceEventHandler for ChannelDurationNotifier {
 #[command]
 #[only_in(guilds)]
 async fn join(ctx: &Context, msg: &Message) -> CommandResult {
-    do_join(ctx, msg).await
-}
-
-/// Inner function for joining mostly so that I can have the say command
-/// automatically try to join a channel if it's not already in one.
-async fn do_join(ctx: &Context, msg: &Message) -> CommandResult {
     let guild = msg
         .guild(&ctx.cache)
         .await
@@ -111,37 +143,47 @@ async fn do_join(ctx: &Context, msg: &Message) -> CommandResult {
     {
         Some(c) => c,
         None => {
-            msg.reply(ctx, "Not in a voice channel").await?;
+            msg.reply(ctx, NOT_IN_VOICE_CHANNEL_MESSAGE).await?;
             return Ok(());
         }
     };
+
+    {
+        if ctx.data.read().await.get::<CurrentVoiceChannel>().is_some() {
+            // we are already in a voice channel. We require the bot to explicitly
+            // leave a voice channel before it can join another one.
+            msg.reply(ctx, "I'm already in a voice channel.").await?;
+            return Ok(());
+        }
+    }
+
+    do_join(ctx, msg, channel_id, guild_id).await
+}
+
+/// Inner function for joining mostly so that I can have the say command
+/// automatically try to join a channel if it's not already in one.
+#[tracing::instrument(skip(ctx))]
+async fn do_join(
+    ctx: &Context,
+    msg: &Message,
+    channel_id: ChannelId,
+    guild_id: GuildId,
+) -> CommandResult {
+    tracing::debug!(initiator = ?msg.author, ?channel_id, "Attempting to join voice channel");
 
     let manager = songbird::get(ctx)
         .await
         .expect("Songbird context should be there")
         .clone();
 
-    {
-        // check to see if we are already in the same channel as the user. If we are,
-        // return without doing anything further. If we are in a different voice channel
-        // than the user, tell them that we are already in a voice channel.
-        // If we are not in a voice channel at all, we continue onwards.
-        if let Some(c) = ctx.data.read().await.get::<CurrentVoiceChannel>() {
-            if *c != channel_id {
-                msg.reply(ctx, "Already in another voice channel.").await?;
-            }
-            return Ok(());
-        }
-    }
-
     let (handle_lock, success) = manager.join(guild_id, channel_id).await;
 
-    if let Ok(_) = success {
+    if success.is_ok() {
         let mut handle = handle_lock.lock().await;
 
         handle.add_global_event(
             Event::Periodic(Duration::from_secs(60), None),
-            ChannelDurationNotifier::default()
+            ChannelDurationNotifier::default(),
         );
 
         ctx.data
@@ -166,18 +208,27 @@ async fn leave(ctx: &Context, msg: &Message) -> CommandResult {
         .ok_or_else(|| anyhow!("Could not retrieve server info"))?;
     let guild_id = guild.id;
 
-    let channel_id = match guild
-        .voice_states
-        .get(&msg.author.id)
-        .and_then(|vs| vs.channel_id)
+    // in general, can't ask the bot to do something unless you're in that channel.
     {
-        Some(c) => c,
-        None => {
-            msg.reply(ctx, "You must be in a voice channel to make me leave one")
-                .await?;
+        if let Some(channel_id) = guild
+            .voice_states
+            .get(&msg.author.id)
+            .and_then(|vs| vs.channel_id)
+        {
+            if let Some(c) = ctx.data.read().await.get::<CurrentVoiceChannel>() {
+                if *c != channel_id {
+                    msg.reply(ctx, NOT_IN_SAME_VOICE_CHANNEL_MESSAGE).await?;
+                    return Ok(());
+                }
+            } else {
+                msg.reply(ctx, "I'm not in a voice channel.").await?;
+                return Ok(());
+            }
+        } else {
+            msg.reply(ctx, NOT_IN_VOICE_CHANNEL_MESSAGE).await?;
             return Ok(());
         }
-    };
+    }
 
     let manager = songbird::get(ctx)
         .await
@@ -187,17 +238,6 @@ async fn leave(ctx: &Context, msg: &Message) -> CommandResult {
 
     if has_handler {
         let mut data = ctx.data.write().await;
-
-        if let Some(c) = data.get::<CurrentVoiceChannel>() {
-            if *c != channel_id {
-                msg.reply(
-                    ctx,
-                    "You must be in the same voice channel as me to make me leave.",
-                )
-                .await?;
-                return Ok(());
-            }
-        }
 
         if let Err(e) = manager.remove(guild_id).await {
             msg.channel_id
@@ -229,28 +269,68 @@ impl VoiceEventHandler for TrackCleanup {
 #[command]
 #[only_in(guilds)]
 async fn say(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
-    // try to join the channel the user's in.
-    do_join(ctx, msg).await?;
-
-    let manager = songbird::get(ctx)
-        .await
-        .expect("Songbird context should be there")
-        .clone();
-
     let guild = msg
         .guild(&ctx.cache)
         .await
         .ok_or_else(|| anyhow!("Could not fetch guild"))?;
     let guild_id = guild.id;
 
-    if let Some(tts_service) = ctx.data.write().await.get_mut::<TtsService>() {
+    let channel_id = match guild
+        .voice_states
+        .get(&msg.author.id)
+        .and_then(|vs| vs.channel_id)
+    {
+        Some(c) => c,
+        None => {
+            msg.reply(ctx, NOT_IN_VOICE_CHANNEL_MESSAGE).await?;
+            return Ok(());
+        }
+    };
+
+    let in_voice_channel = { ctx.data.read().await.get::<CurrentVoiceChannel>().copied() };
+
+    // If we're not in a voice channel currently, try to join the one
+    // the user's in. If we are in one, check to make sure it's the same one
+    // as the user. Bail if it's not.
+    match in_voice_channel {
+        Some(c) => {
+            if c != channel_id {
+                msg.reply(ctx, NOT_IN_SAME_VOICE_CHANNEL_MESSAGE).await?;
+                return Ok(());
+            } else {
+                tracing::debug!(
+                    ?guild_id,
+                    "Already in same voice channel as user, continuing..."
+                );
+            }
+        }
+        None => {
+            do_join(ctx, msg, channel_id, guild_id).await?;
+        }
+    }
+
+    let manager = songbird::get(ctx)
+        .await
+        .expect("Songbird context should be there")
+        .clone();
+
+    let res = {
+        let mut data = ctx.data.write().await;
+        let voices = data
+            .get::<Voices>()
+            .expect("There should have been voices here.");
+        let voice = voices[fastrand::usize(..voices.len())].clone();
+
+        let tts_service = data
+            .get_mut::<TtsService>()
+            .expect("There should have been a TTS service here.");
         let req = SynthesizeSpeechRequest {
             input: Some(SynthesisInput {
                 input_source: Some(InputSource::Text(args.message().to_string())),
             }),
             voice: Some(VoiceSelectionParams {
                 language_code: "en-US".to_string(),
-                name: "en-US-Wavenet-D".to_string(),
+                name: voice,
                 ssml_gender: 1, // not necessary, but hey, let's see what happens
             }),
             audio_config: Some(AudioConfig {
@@ -268,25 +348,29 @@ async fn say(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
             .await
             .map_err(|s| anyhow!("Could not make TTS API call: {}", s.message()))?;
 
-        if let Some(handler_lock) = manager.get(guild_id) {
-            let response = res.into_inner();
+        res
+    };
 
-            let mut file = tempfile::NamedTempFile::new()?;
-            file.write_all(&response.audio_content)?;
+    if let Some(handler_lock) = manager.get(guild_id) {
+        let response = res.into_inner();
 
-            let input = songbird::ffmpeg(file.path())
-                .await
-                .map_err(|_| anyhow!("Could not create ffmpeg player"))?;
+        let mut file = tempfile::NamedTempFile::new()?;
+        file.write_all(&response.audio_content)?;
 
-            let (track, track_handle) = create_player(input);
+        let input = songbird::ffmpeg(file.path())
+            .await
+            .map_err(|_| anyhow!("Could not create ffmpeg player"))?;
 
-            track_handle.add_event(Event::Track(TrackEvent::End), TrackCleanup(file))?;
+        let (track, track_handle) = create_player(input);
 
-            {
-                let mut handler = handler_lock.lock().await;
-                handler.enqueue(track);
-            }
+        track_handle.add_event(Event::Track(TrackEvent::End), TrackCleanup(file))?;
+
+        {
+            let mut handler = handler_lock.lock().await;
+            handler.enqueue(track);
         }
+    } else {
+        msg.reply(ctx, "Not in a voice channel right now.").await?;
     }
 
     Ok(())
@@ -295,17 +379,41 @@ async fn say(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
 #[command]
 #[only_in(guilds)]
 async fn skip(ctx: &Context, msg: &Message) -> CommandResult {
-    let manager = songbird::get(ctx)
-        .await
-        .expect("Songbird context should be in there")
-        .clone();
     let guild = msg
         .guild(&ctx.cache)
         .await
         .ok_or_else(|| anyhow!("Could not fetch guild"))?;
 
+    // in general, can't ask the bot to do something unless you're in that channel.
+    {
+        if let Some(channel_id) = guild
+            .voice_states
+            .get(&msg.author.id)
+            .and_then(|vs| vs.channel_id)
+        {
+            if let Some(c) = ctx.data.read().await.get::<CurrentVoiceChannel>() {
+                if *c != channel_id {
+                    msg.reply(ctx, NOT_IN_SAME_VOICE_CHANNEL_MESSAGE).await?;
+                    return Ok(());
+                }
+            } else {
+                msg.reply(ctx, "I'm not in a voice channel.").await?;
+                return Ok(());
+            }
+        } else {
+            msg.reply(ctx, NOT_IN_VOICE_CHANNEL_MESSAGE).await?;
+            return Ok(());
+        }
+    }
+
+    let manager = songbird::get(ctx)
+        .await
+        .expect("Songbird context should be in there")
+        .clone();
     if let Some(handler_lock) = manager.get(guild.id) {
         handler_lock.lock().await.queue().skip()?;
+    } else {
+        msg.reply(ctx, "Not in a voice channel right now.").await?;
     }
 
     Ok(())
@@ -333,6 +441,11 @@ impl TypeMapKey for TtsService {
     type Value = TextToSpeechClient<Channel>;
 }
 
+struct Voices;
+impl TypeMapKey for Voices {
+    type Value = Vec<String>;
+}
+
 #[group]
 #[commands(say, join, leave, skip)]
 struct General;
@@ -346,7 +459,7 @@ async fn main() -> anyhow::Result<()> {
     let api_path = std::env::var("GOOGLE_API_CREDENTIALS")
         .context("Could not find env var GOOGLE_API_CREDENTIALS")?;
 
-    let service = create_google_api_client(api_path).await?;
+    let mut service = create_google_api_client(api_path).await?;
 
     let framework = StandardFramework::new()
         .configure(|c| c.prefix("::"))
@@ -359,7 +472,13 @@ async fn main() -> anyhow::Result<()> {
         .await
         .context("Could not initialize Discord client")?;
 
-    client.data.write().await.insert::<TtsService>(service);
+    let voices = get_voices(&mut service).await?;
+
+    {
+        let mut data = client.data.write().await;
+        data.insert::<TtsService>(service);
+        data.insert::<Voices>(voices);
+    }
 
     let _ = client.start().await.map_err(|why| {
         tracing::info!("Client ended: {:?}", why);

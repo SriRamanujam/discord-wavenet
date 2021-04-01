@@ -327,6 +327,7 @@ name = "discord-wavenet"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "fastrand",
  "googapis",
  "gouth",
  "prost",
@@ -337,6 +338,7 @@ dependencies = [
  "tokio",
  "tonic",
  "tracing",
+ "tracing-futures",
  "tracing-subscriber",
 ]
 
@@ -380,6 +382,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "be4551092f4d519593039259a9ed8daedf0da12e5109c5280338073eaeb81180"
 dependencies = [
  "num-traits 0.1.43",
+]
+
+[[package]]
+name = "fastrand"
+version = "1.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ca5faf057445ce5c9d4329e382b2ce7ca38550ef3b73a5348362d5f24e0c7fe3"
+dependencies = [
+ "instant",
 ]
 
 [[package]]

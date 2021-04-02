@@ -326,7 +326,7 @@ async fn say(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
             .expect("There should have been a TTS service here.");
         let req = SynthesizeSpeechRequest {
             input: Some(SynthesisInput {
-                input_source: Some(InputSource::Text(args.message().to_string())),
+                input_source: Some(InputSource::Ssml(format!("<speak>{}</speak>", args.message().to_string()))),
             }),
             voice: Some(VoiceSelectionParams {
                 language_code: "en-US".to_string(),

@@ -12,7 +12,7 @@ use anyhow::anyhow;
 use anyhow::Context as anyhowContext;
 use googapis::google::cloud::texttospeech::v1::{
     synthesis_input::InputSource, text_to_speech_client::TextToSpeechClient, AudioConfig,
-    AudioEncoding, ListVoicesRequest, SynthesisInput, SynthesizeSpeechRequest,
+    AudioEncoding, ListVoicesRequest, SsmlVoiceGender, SynthesisInput, SynthesizeSpeechRequest,
     VoiceSelectionParams,
 };
 use gouth::Builder;
@@ -326,12 +326,15 @@ async fn say(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
             .expect("There should have been a TTS service here.");
         let req = SynthesizeSpeechRequest {
             input: Some(SynthesisInput {
-                input_source: Some(InputSource::Ssml(format!("<speak>{}</speak>", args.message().to_string()))),
+                input_source: Some(InputSource::Ssml(format!(
+                    "<speak>{}</speak>",
+                    args.message().to_string()
+                ))),
             }),
             voice: Some(VoiceSelectionParams {
                 language_code: "en-US".to_string(),
                 name: voice,
-                ssml_gender: 1, // not necessary, but hey, let's see what happens
+                ssml_gender: SsmlVoiceGender::Unspecified as i32,
             }),
             audio_config: Some(AudioConfig {
                 audio_encoding: AudioEncoding::Linear16 as i32,

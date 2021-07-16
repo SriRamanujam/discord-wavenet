@@ -4,23 +4,17 @@ use anyhow::anyhow;
 use serenity::{
     client::Context,
     framework::standard::{macros::command, CommandResult},
-    model::{
-        channel::Message,
-        id::{ChannelId, GuildId},
-    },
-    prelude::TypeMapKey,
+    model::channel::Message,
 };
-use songbird::Event;
+use songbird::{
+    id::{ChannelId, GuildId},
+    Event,
+};
 
 use crate::commands::{
-    ChannelDurationNotifier, NOT_IN_SAME_VOICE_CHANNEL_MESSAGE, NOT_IN_VOICE_CHANNEL_MESSAGE,
+    get_songbird_from_ctx, get_voice_channel_id, ChannelDurationNotifier,
+    NOT_IN_SAME_VOICE_CHANNEL_MESSAGE, NOT_IN_VOICE_CHANNEL_MESSAGE,
 };
-
-struct CurrentVoiceChannel;
-
-impl TypeMapKey for CurrentVoiceChannel {
-    type Value = ChannelId;
-}
 
 #[command]
 #[only_in(guilds)]
@@ -29,27 +23,26 @@ pub async fn join(ctx: &Context, msg: &Message) -> CommandResult {
         .guild(&ctx.cache)
         .await
         .ok_or_else(|| anyhow!("Could not retrieve server info"))?;
-    let guild_id = guild.id;
+    let guild_id = GuildId::from(guild.id);
 
+    // if the user is not in a voice channel, don't allow the join (what would we join into?)
     let channel_id = match guild
         .voice_states
         .get(&msg.author.id)
         .and_then(|vs| vs.channel_id)
     {
-        Some(c) => c,
+        Some(c) => ChannelId::from(c),
         None => {
             msg.reply(ctx, NOT_IN_VOICE_CHANNEL_MESSAGE).await?;
             return Ok(());
         }
     };
 
-    {
-        if ctx.data.read().await.get::<CurrentVoiceChannel>().is_some() {
-            // we are already in a voice channel. We require the bot to explicitly
-            // leave a voice channel before it can join another one.
-            msg.reply(ctx, "I'm already in a voice channel.").await?;
-            return Ok(());
-        }
+    // if we're already in a call for this guild, don't allow the join.
+    let manager = get_songbird_from_ctx(ctx).await;
+    if manager.get(guild_id).is_some() {
+        msg.reply(ctx, "I'm already in a voice channel").await?;
+        return Ok(());
     }
 
     do_join(ctx, msg, channel_id, guild_id).await
@@ -66,25 +59,18 @@ pub(super) async fn do_join(
 ) -> CommandResult {
     tracing::debug!(initiator = ?msg.author, ?channel_id, "Attempting to join voice channel");
 
-    let manager = songbird::get(ctx)
-        .await
-        .expect("Songbird context should be there")
-        .clone();
-
+    let manager = get_songbird_from_ctx(ctx).await;
     let (handle_lock, success) = manager.join(guild_id, channel_id).await;
 
     if success.is_ok() {
-        let mut handle = handle_lock.lock().await;
+        {
+            let mut handle = handle_lock.lock().await;
 
-        handle.add_global_event(
-            Event::Periodic(Duration::from_secs(60), None),
-            ChannelDurationNotifier::default(),
-        );
-
-        ctx.data
-            .write()
-            .await
-            .insert::<CurrentVoiceChannel>(channel_id);
+            handle.add_global_event(
+                Event::Periodic(Duration::from_secs(60), None),
+                ChannelDurationNotifier::default(),
+            );
+        }
     } else {
         msg.channel_id
             .say(&ctx.http, "Could not join voice channel.")
@@ -101,50 +87,41 @@ pub async fn leave(ctx: &Context, msg: &Message) -> CommandResult {
         .guild(&ctx.cache)
         .await
         .ok_or_else(|| anyhow!("Could not retrieve server info"))?;
-    let guild_id = guild.id;
+    let guild_id = GuildId::from(guild.id);
 
-    // in general, can't ask the bot to do something unless you're in that channel.
-    {
-        if let Some(channel_id) = guild
-            .voice_states
-            .get(&msg.author.id)
-            .and_then(|vs| vs.channel_id)
-        {
-            if let Some(c) = ctx.data.read().await.get::<CurrentVoiceChannel>() {
-                if *c != channel_id {
-                    msg.reply(ctx, NOT_IN_SAME_VOICE_CHANNEL_MESSAGE).await?;
-                    return Ok(());
-                }
-            } else {
-                msg.reply(ctx, "I'm not in a voice channel.").await?;
+    let manager = get_songbird_from_ctx(ctx).await;
+    let channel_id = match get_voice_channel_id(&guild, msg) {
+        Some(c) => c,
+        None => {
+            msg.reply(ctx, NOT_IN_VOICE_CHANNEL_MESSAGE).await?;
+            return Ok(());
+        }
+    };
+
+    match manager.get(guild_id) {
+        Some(call) => {
+            // we are in a call right now, check to make sure the user is in the same channel.
+            let call_channel = {
+                let r = call.lock().await;
+                r.current_channel().expect("There should be a channel here")
+            };
+
+            if channel_id != call_channel {
+                msg.reply(ctx, NOT_IN_SAME_VOICE_CHANNEL_MESSAGE).await?;
                 return Ok(());
             }
-        } else {
-            msg.reply(ctx, NOT_IN_VOICE_CHANNEL_MESSAGE).await?;
+        }
+        None => {
+            msg.reply(ctx, "I'm not in a voice channel.").await?;
             return Ok(());
         }
     }
 
-    let manager = songbird::get(ctx)
-        .await
-        .expect("Songbird Voice client placed in at initialisation.")
-        .clone();
-    let has_handler = manager.get(guild_id).is_some();
-
-    if has_handler {
-        let mut data = ctx.data.write().await;
-
-        if let Err(e) = manager.remove(guild_id).await {
-            msg.channel_id
-                .say(&ctx.http, format!("Failed: {:?}", e))
-                .await?;
-        }
-
-        data.remove::<CurrentVoiceChannel>();
-
-        msg.channel_id.say(&ctx.http, "Left voice channel").await?;
-    } else {
-        msg.reply(ctx, "Not in a voice channel").await?;
+    // if we've made it past all the checks, we are clear to remove ourselves from the channel.
+    if let Err(e) = manager.remove(guild_id).await {
+        msg.channel_id
+            .say(&ctx.http, format!("Failed: {:?}", e))
+            .await?;
     }
 
     Ok(())

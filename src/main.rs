@@ -1,4 +1,4 @@
-use std::{path::Path, sync::Arc};
+use std::path::Path;
 
 use anyhow::Context as anyhowContext;
 use googapis::google::cloud::texttospeech::v1::text_to_speech_client::TextToSpeechClient;
@@ -6,10 +6,9 @@ use googapis::google::cloud::texttospeech::v1::ListVoicesRequest;
 use gouth::Builder;
 use serenity::{
     async_trait,
-    client::{bridge::gateway::ShardManager, Context, EventHandler},
+    client::{Context, EventHandler},
     framework::{standard::macros::group, StandardFramework},
     model::prelude::Ready,
-    prelude::{Mutex, TypeMapKey},
     Client,
 };
 use songbird::SerenityInit;
@@ -100,12 +99,6 @@ impl EventHandler for ReadyNotifier {
 #[commands(say, join, leave, skip)]
 struct General;
 
-pub struct ShardManagerContainer;
-
-impl TypeMapKey for ShardManagerContainer {
-    type Value = Arc<Mutex<ShardManager>>;
-}
-
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let subscriber = tracing_subscriber::FmtSubscriber::builder()
@@ -135,19 +128,9 @@ async fn main() -> anyhow::Result<()> {
 
     {
         let mut data = client.data.write().await;
-        data.insert::<ShardManagerContainer>(client.shard_manager.clone());
         data.insert::<TtsService>(service);
         data.insert::<Voices>(voices);
     }
-
-    let shard_manager = client.shard_manager.clone();
-
-    tokio::spawn(async move {
-        tokio::signal::ctrl_c()
-            .await
-            .expect("Could not register ctrl+c handler");
-        shard_manager.lock().await.shutdown_all().await;
-    });
 
     let _ = client.start().await.map_err(|why| {
         tracing::info!("Client ended: {:?}", why);

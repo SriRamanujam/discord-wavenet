@@ -1,8 +1,16 @@
-use serenity::{async_trait, model::id::ChannelId, prelude::TypeMapKey};
-use songbird::{events::EventHandler as VoiceEventHandler, Event, EventContext};
-use std::sync::{
-    atomic::{AtomicUsize, Ordering},
-    Arc,
+use serenity::{
+    async_trait,
+    client::Context,
+    model::{channel::Message, guild::Guild},
+};
+use songbird::{
+    events::EventHandler as VoiceEventHandler, id::ChannelId, Event, EventContext, Songbird,
+};
+use std::{
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    },
 };
 
 pub mod join;
@@ -28,8 +36,17 @@ impl VoiceEventHandler for ChannelDurationNotifier {
     }
 }
 
-struct CurrentVoiceChannel;
+async fn get_songbird_from_ctx(ctx: &Context) -> Arc<Songbird> {
+    songbird::get(ctx)
+        .await
+        .expect("Songbird context should be present")
+        .clone()
+}
 
-impl TypeMapKey for CurrentVoiceChannel {
-    type Value = ChannelId;
+fn get_voice_channel_id(guild: &Guild, msg: &Message) -> Option<ChannelId> {
+    guild
+        .voice_states
+        .get(&msg.author.id)
+        .and_then(|vs| vs.channel_id)
+        .map(|c| ChannelId::from(c))
 }

@@ -12,12 +12,16 @@ use serenity::{
     model::channel::Message,
     prelude::TypeMapKey,
 };
-use songbird::events::EventHandler as VoiceEventHandler;
 use songbird::{create_player, Event, EventContext, TrackEvent};
+use songbird::{
+    events::EventHandler as VoiceEventHandler,
+    id::{ChannelId, GuildId},
+};
 use tonic::transport::Channel;
 
 use crate::commands::{
-    CurrentVoiceChannel, NOT_IN_SAME_VOICE_CHANNEL_MESSAGE, NOT_IN_VOICE_CHANNEL_MESSAGE,
+    get_songbird_from_ctx, get_voice_channel_id, NOT_IN_SAME_VOICE_CHANNEL_MESSAGE,
+    NOT_IN_VOICE_CHANNEL_MESSAGE,
 };
 
 pub struct TtsService;
@@ -49,46 +53,38 @@ pub async fn say(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
         .guild(&ctx.cache)
         .await
         .ok_or_else(|| anyhow!("Could not fetch guild"))?;
-    let guild_id = guild.id;
+    let guild_id = GuildId::from(guild.id);
 
     let channel_id = match guild
         .voice_states
         .get(&msg.author.id)
         .and_then(|vs| vs.channel_id)
     {
-        Some(c) => c,
+        Some(c) => ChannelId::from(c),
         None => {
             msg.reply(ctx, NOT_IN_VOICE_CHANNEL_MESSAGE).await?;
             return Ok(());
         }
     };
 
-    let in_voice_channel = { ctx.data.read().await.get::<CurrentVoiceChannel>().copied() };
+    let manager = get_songbird_from_ctx(ctx).await;
 
-    // If we're not in a voice channel currently, try to join the one
-    // the user's in. If we are in one, check to make sure it's the same one
-    // as the user. Bail if it's not.
-    match in_voice_channel {
-        Some(c) => {
+    // if we're not in a voice channel for this guild, join the channel.
+    // if we're in another voice channel in the same guild, deny the say with a message.
+    match manager.get(GuildId::from(guild_id)) {
+        Some(s) => {
+            let r = s.lock().await;
+            let c = r.current_channel().expect("there should be a channel here");
             if c != channel_id {
                 msg.reply(ctx, NOT_IN_SAME_VOICE_CHANNEL_MESSAGE).await?;
                 return Ok(());
-            } else {
-                tracing::debug!(
-                    ?guild_id,
-                    "Already in same voice channel as user, continuing..."
-                );
             }
         }
         None => {
+            // we are not in a voice channel for this guild, join one.
             crate::commands::join::do_join(ctx, msg, channel_id, guild_id).await?;
         }
     }
-
-    let manager = songbird::get(ctx)
-        .await
-        .expect("Songbird context should be there")
-        .clone();
 
     let res = {
         let mut data = ctx.data.write().await;
@@ -162,35 +158,28 @@ pub async fn skip(ctx: &Context, msg: &Message) -> CommandResult {
         .guild(&ctx.cache)
         .await
         .ok_or_else(|| anyhow!("Could not fetch guild"))?;
+    let guild_id = GuildId::from(guild.id);
 
-    // in general, can't ask the bot to do something unless you're in that channel.
-    {
-        if let Some(channel_id) = guild
-            .voice_states
-            .get(&msg.author.id)
-            .and_then(|vs| vs.channel_id)
-        {
-            if let Some(c) = ctx.data.read().await.get::<CurrentVoiceChannel>() {
-                if *c != channel_id {
-                    msg.reply(ctx, NOT_IN_SAME_VOICE_CHANNEL_MESSAGE).await?;
-                    return Ok(());
-                }
-            } else {
-                msg.reply(ctx, "I'm not in a voice channel.").await?;
-                return Ok(());
-            }
-        } else {
+    let manager = get_songbird_from_ctx(ctx).await;
+
+    let channel_id = match get_voice_channel_id(&guild, msg) {
+        Some(c) => c,
+        None => {
             msg.reply(ctx, NOT_IN_VOICE_CHANNEL_MESSAGE).await?;
             return Ok(());
         }
-    }
+    };
 
-    let manager = songbird::get(ctx)
-        .await
-        .expect("Songbird context should be in there")
-        .clone();
-    if let Some(handler_lock) = manager.get(guild.id) {
-        handler_lock.lock().await.queue().skip()?;
+    if let Some(call_lock) = manager.get(guild_id) {
+        // don't allow the action if the user is not in the same channel.
+        let r = call_lock.lock().await;
+        let c = r.current_channel().expect("there should be a channel here");
+        if c != channel_id {
+            msg.reply(ctx, NOT_IN_SAME_VOICE_CHANNEL_MESSAGE).await?;
+            return Ok(());
+        }
+
+        r.queue().skip()?;
     } else {
         msg.reply(ctx, "Not in a voice channel right now.").await?;
     }

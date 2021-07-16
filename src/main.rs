@@ -110,11 +110,12 @@ async fn main() -> anyhow::Result<()> {
         std::env::var("DISCORD_TOKEN").context("Could not find env var DISCORD_TOKEN")?;
     let api_path = std::env::var("GOOGLE_API_CREDENTIALS")
         .context("Could not find env var GOOGLE_API_CREDENTIALS")?;
+    let prefix = std::env::var("PREFIX").unwrap_or_else(|_| "::".to_owned());
 
     let mut service = create_google_api_client(api_path).await?;
 
     let framework = StandardFramework::new()
-        .configure(|c| c.prefix("::"))
+        .configure(|c| c.prefix(&prefix))
         .group(&GENERAL_GROUP);
 
     let mut client = Client::builder(&discord_token)

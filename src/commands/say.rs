@@ -1,4 +1,10 @@
-use std::io::Write;
+use std::{
+    io::Write,
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    },
+};
 
 use anyhow::anyhow;
 use googapis::google::cloud::texttospeech::v1::{
@@ -20,12 +26,11 @@ use songbird::{
 use tonic::transport::Channel;
 
 use crate::commands::{
-    get_songbird_from_ctx, get_voice_channel_id, NOT_IN_SAME_VOICE_CHANNEL_MESSAGE,
+    get_songbird_from_ctx, get_voice_channel_id, IdleDurations, NOT_IN_SAME_VOICE_CHANNEL_MESSAGE,
     NOT_IN_VOICE_CHANNEL_MESSAGE,
 };
 
 pub struct TtsService;
-
 impl TypeMapKey for TtsService {
     type Value = TextToSpeechClient<Channel>;
 }
@@ -35,13 +40,17 @@ impl TypeMapKey for Voices {
     type Value = Vec<String>;
 }
 
-struct TrackCleanup(tempfile::NamedTempFile);
+struct TrackCleanup {
+    idle_tracking: Arc<AtomicUsize>,
+    /// Unused, we want to tie the lifetimes together so that the temp file is cleaned up.
+    _tmpfile: tempfile::NamedTempFile,
+}
 
 #[async_trait]
 impl VoiceEventHandler for TrackCleanup {
     async fn act(&self, _ctx: &EventContext<'_>) -> Option<Event> {
-        // This event is just around so that the tempfile will get destructed
-        // after the track has been played and not while it's in the queue.
+        // reset the idle tracker for this guild.
+        self.idle_tracking.store(0, Ordering::SeqCst);
         None
     }
 }
@@ -138,7 +147,36 @@ pub async fn say(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
 
         let (track, track_handle) = create_player(input);
 
-        track_handle.add_event(Event::Track(TrackEvent::End), TrackCleanup(file))?;
+        let maybe_idle_tracking = {
+            ctx.data
+                .read()
+                .await
+                .get::<IdleDurations>()
+                .expect("idle duration should be present")
+                .get(&guild_id)
+                .cloned()
+        };
+
+        match maybe_idle_tracking {
+            Some(c) => {
+                track_handle.add_event(
+                    Event::Track(TrackEvent::End),
+                    TrackCleanup {
+                        _tmpfile: file,
+                        idle_tracking: c,
+                    },
+                )?;
+            }
+            None => {
+                file.close()?;
+                msg.reply(
+                    ctx,
+                    "Unexpected error. Please contact bot admin and tell them \"Blue Rhinoceros\"",
+                )
+                .await?;
+                return Ok(());
+            }
+        }
 
         {
             let mut handler = handler_lock.lock().await;

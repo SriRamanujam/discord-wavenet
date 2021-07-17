@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::path::Path;
 
 use anyhow::Context as anyhowContext;
@@ -21,7 +22,7 @@ use tracing_subscriber::EnvFilter;
 
 mod commands;
 
-use commands::{join::*, say::*};
+use commands::{join::*, say::*, IdleDurations};
 
 #[tracing::instrument(skip(api_path), err)]
 async fn create_google_api_client<C: AsRef<Path> + std::fmt::Debug>(
@@ -131,6 +132,7 @@ async fn main() -> anyhow::Result<()> {
         let mut data = client.data.write().await;
         data.insert::<TtsService>(service);
         data.insert::<Voices>(voices);
+        data.insert::<IdleDurations>(HashMap::new());
     }
 
     let _ = client.start().await.map_err(|why| {

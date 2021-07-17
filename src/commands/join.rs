@@ -1,4 +1,7 @@
-use std::time::Duration;
+use std::{
+    sync::{atomic::Ordering, Arc},
+    time::Duration,
+};
 
 use anyhow::anyhow;
 use serenity::{
@@ -7,12 +10,13 @@ use serenity::{
     model::channel::Message,
 };
 use songbird::{
+    error::JoinResult,
     id::{ChannelId, GuildId},
-    Event,
+    Event, Songbird,
 };
 
 use crate::commands::{
-    get_songbird_from_ctx, get_voice_channel_id, ChannelDurationNotifier,
+    get_songbird_from_ctx, get_voice_channel_id, IdleDurationTracker, IdleDurations,
     NOT_IN_SAME_VOICE_CHANNEL_MESSAGE, NOT_IN_VOICE_CHANNEL_MESSAGE,
 };
 
@@ -63,12 +67,23 @@ pub(super) async fn do_join(
     let (handle_lock, success) = manager.join(guild_id, channel_id).await;
 
     if success.is_ok() {
+        // create the duration tracking atomic usize
+        let duration_tracking = {
+            let mut data = ctx.data.write().await;
+            let durations = data
+                .get_mut::<IdleDurations>()
+                .expect("join durations hashmap should be here");
+            let d = durations.entry(guild_id).or_default();
+            d.store(0, Ordering::SeqCst);
+            d.clone()
+        };
+
         {
             let mut handle = handle_lock.lock().await;
 
             handle.add_global_event(
                 Event::Periodic(Duration::from_secs(60), None),
-                ChannelDurationNotifier::default(),
+                IdleDurationTracker::new(duration_tracking, manager.clone(), guild_id),
             );
         }
     } else {
@@ -118,11 +133,15 @@ pub async fn leave(ctx: &Context, msg: &Message) -> CommandResult {
     }
 
     // if we've made it past all the checks, we are clear to remove ourselves from the channel.
-    if let Err(e) = manager.remove(guild_id).await {
+    if let Err(e) = do_leave(manager, guild_id).await {
         msg.channel_id
             .say(&ctx.http, format!("Failed: {:?}", e))
             .await?;
     }
 
     Ok(())
+}
+
+pub(super) async fn do_leave(manager: Arc<Songbird>, guild_id: GuildId) -> JoinResult<()> {
+    manager.remove(guild_id).await
 }

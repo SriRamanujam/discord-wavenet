@@ -80,7 +80,7 @@ pub async fn say(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
 
     // if we're not in a voice channel for this guild, join the channel.
     // if we're in another voice channel in the same guild, deny the say with a message.
-    match manager.get(GuildId::from(guild_id)) {
+    match manager.get(guild_id) {
         Some(s) => {
             let r = s.lock().await;
             let c = r.current_channel().expect("there should be a channel here");

@@ -71,7 +71,6 @@ async fn get_songbird_from_ctx(ctx: &Context) -> Arc<Songbird> {
     songbird::get(ctx)
         .await
         .expect("Songbird context should be present")
-        .clone()
 }
 
 fn get_voice_channel_id(guild: &Guild, msg: &Message) -> Option<ChannelId> {
@@ -79,5 +78,5 @@ fn get_voice_channel_id(guild: &Guild, msg: &Message) -> Option<ChannelId> {
         .voice_states
         .get(&msg.author.id)
         .and_then(|vs| vs.channel_id)
-        .map(|c| ChannelId::from(c))
+        .map(ChannelId::from)
 }

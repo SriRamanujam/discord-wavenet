@@ -21,7 +21,7 @@ use serenity::{
 use songbird::{create_player, Event, EventContext, TrackEvent};
 use songbird::{
     events::EventHandler as VoiceEventHandler,
-    id::{ChannelId, GuildId},
+    id::GuildId,
 };
 use tonic::transport::Channel;
 
@@ -64,14 +64,10 @@ pub async fn say(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
         .ok_or_else(|| anyhow!("Could not fetch guild"))?;
     let guild_id = GuildId::from(guild.id);
 
-    let channel_id = match guild
-        .voice_states
-        .get(&msg.author.id)
-        .and_then(|vs| vs.channel_id)
-    {
-        Some(c) => ChannelId::from(c),
+    let channel_id = match get_voice_channel_id(&guild, msg) {
+        Some(c) => c,
         None => {
-            msg.reply(ctx, NOT_IN_VOICE_CHANNEL_MESSAGE).await?;
+            msg.reply(ctx, NOT_IN_SAME_VOICE_CHANNEL_MESSAGE).await?;
             return Ok(());
         }
     };

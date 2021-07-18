@@ -30,12 +30,8 @@ pub async fn join(ctx: &Context, msg: &Message) -> CommandResult {
     let guild_id = GuildId::from(guild.id);
 
     // if the user is not in a voice channel, don't allow the join (what would we join into?)
-    let channel_id = match guild
-        .voice_states
-        .get(&msg.author.id)
-        .and_then(|vs| vs.channel_id)
-    {
-        Some(c) => ChannelId::from(c),
+    let channel_id = match get_voice_channel_id(&guild, msg) {
+        Some(c) => c,
         None => {
             msg.reply(ctx, NOT_IN_VOICE_CHANNEL_MESSAGE).await?;
             return Ok(());

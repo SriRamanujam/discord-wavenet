@@ -52,7 +52,7 @@ impl IdleDurationTracker {
 impl VoiceEventHandler for IdleDurationTracker {
     async fn act(&self, _ctx: &EventContext<'_>) -> Option<Event> {
         let idle_minutes = self.idle_count_minutes.fetch_add(1, Ordering::Relaxed) + 1;
-        tracing::info!("Idle in voice channel for {} minutes!", idle_minutes);
+        tracing::debug!("Idle in voice channel for {} minutes!", idle_minutes);
 
         // if we've been idle in the channel for 10 minutes, leave.
         if idle_minutes >= 10 {

@@ -4,21 +4,46 @@ on:
   push:
 
 jobs:
-  buildx:
+#  buildx:
+#    runs-on: ubuntu-latest
+#    steps:
+#      -
+#        name: Checkout
+#        uses: actions/checkout@v2
+#      -
+#        name: Set up Docker Buildx
+#        id: buildx
+#        uses: docker/setup-buildx-action@v1
+#      -
+#        name: Inspect builder
+#        run: |
+#          echo "Name:      ${{ steps.buildx.outputs.name }}"
+#          echo "Endpoint:  ${{ steps.buildx.outputs.endpoint }}"
+#          echo "Status:    ${{ steps.buildx.outputs.status }}"
+#          echo "Flags:     ${{ steps.buildx.outputs.flags }}"
+#          echo "Platforms: ${{ steps.buildx.outputs.platforms }}"
+
+  build:
+    strategy:
+      matrix:
+        rust_version: ["1.51", "stable"]
+        target: ["aarch64-unknown-linux-gnu", "x86_64-unknown-linux-gnu"]
     runs-on: ubuntu-latest
     steps:
-      -
+      - 
         name: Checkout
         uses: actions/checkout@v2
       -
-        name: Set up Docker Buildx
-        id: buildx
-        uses: docker/setup-buildx-action@v1
+        name: Install Rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: ${{ matrix.rust_version }}
+          target: ${{ matrix.target }}
+          override: true
       -
-        name: Inspect builder
-        run: |
-          echo "Name:      ${{ steps.buildx.outputs.name }}"
-          echo "Endpoint:  ${{ steps.buildx.outputs.endpoint }}"
-          echo "Status:    ${{ steps.buildx.outputs.status }}"
-          echo "Flags:     ${{ steps.buildx.outputs.flags }}"
-          echo "Platforms: ${{ steps.buildx.outputs.platforms }}"
+        name: Build project
+        uses: actions-rs/cargo@v1
+        with:
+          use-cross: true
+          command: build
+          args: --target ${{ matrix.target }}

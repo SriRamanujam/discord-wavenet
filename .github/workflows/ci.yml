@@ -23,14 +23,38 @@ jobs:
 #          echo "Flags:     ${{ steps.buildx.outputs.flags }}"
 #          echo "Platforms: ${{ steps.buildx.outputs.platforms }}"
 
+#  build:
+#    strategy:
+#      matrix:
+#        rust_version: ["1.51", "stable"]
+#        target: ["aarch64-unknown-linux-gnu", "x86_64-unknown-linux-gnu"]
+#    runs-on: ubuntu-latest
+#    steps:
+#      - 
+#        name: Checkout
+#        uses: actions/checkout@v2
+#      -
+#        name: Install Rust toolchain
+#        uses: actions-rs/toolchain@v1
+#        with:
+#          toolchain: ${{ matrix.rust_version }}
+#          target: ${{ matrix.target }}
+#          override: true
+#      -
+#        name: Build project
+#        uses: actions-rs/cargo@v1
+#        with:
+#          use-cross: true
+#          command: build
+#          args: --target ${{ matrix.target }}
+
   build:
     strategy:
       matrix:
         rust_version: ["1.51", "stable"]
-        target: ["aarch64-unknown-linux-gnu", "x86_64-unknown-linux-gnu"]
     runs-on: ubuntu-latest
     steps:
-      - 
+      -
         name: Checkout
         uses: actions/checkout@v2
       -
@@ -38,12 +62,10 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           toolchain: ${{ matrix.rust_version }}
-          target: ${{ matrix.target }}
           override: true
       -
-        name: Build project
+        name: Build
         uses: actions-rs/cargo@v1
         with:
-          use-cross: true
           command: build
           args: --target ${{ matrix.target }}

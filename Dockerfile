@@ -6,6 +6,7 @@
 FROM ubuntu:20.04
 
 # This stuff almost never updates
+ARG TARGET_TRIPLE
 ENV DISCORD_TOKEN="" GOOGLE_API_CREDENTIALS="" RUST_LOG=info DEBIAN_FRONTEND=noninteractive
 LABEL org.opencontainers.image.source="https://github.com/SriRamanujam/discord-wavenet"
 
@@ -18,4 +19,4 @@ RUN apt-get update && \
     apt-get upgrade -y && \
     apt-get install -y ca-certificates ffmpeg && \
     rm -rf /var/lib/apt/lists/*
-COPY target/release/discord-wavenet /discord-wavenet
+COPY target/$TARGET_TRIPLE/release/discord-wavenet /discord-wavenet

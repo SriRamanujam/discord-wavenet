@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - github-actions-revamp
 
 jobs:
   build:
@@ -63,4 +62,5 @@ jobs:
           build-args: |
             TARGET_TRIPLE=${{ matrix.target }}
           tags: |
+            ghcr.io/${{ env.REPOSITORY_LOWERCASE }}:latest
             ghcr.io/${{ env.REPOSITORY_LOWERCASE }}:${{ env.RELEASE_VERSION }}

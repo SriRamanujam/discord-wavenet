@@ -13,7 +13,7 @@ googapis = { version = "0.4", features = [ "google-cloud-texttospeech-v1" ] }
 gouth = "0.2"
 tonic = { version = "0.4", features = ["tls"] }
 prost = "0.7"
-prost-types = "0.7"
+prost-types = "0.9"
 tokio = { version = "1", features = [ "full" ]}
 anyhow = "1.0.40"
 tracing-subscriber = "0.2.17"

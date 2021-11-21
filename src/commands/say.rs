@@ -19,10 +19,7 @@ use serenity::{
     prelude::TypeMapKey,
 };
 use songbird::{create_player, Event, EventContext, TrackEvent};
-use songbird::{
-    events::EventHandler as VoiceEventHandler,
-    id::GuildId,
-};
+use songbird::{events::EventHandler as VoiceEventHandler, id::GuildId};
 use tonic::transport::Channel;
 
 use crate::commands::{

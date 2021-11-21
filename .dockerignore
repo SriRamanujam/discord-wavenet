@@ -1,8 +1,2 @@
-/target
+.git
 .gitignore
-/.github
-/.git
-
-# Obviously we want the actual artifacts to be in the build so that we can copy them into the container
-!/target/release/discord-wavenet
-!/target/debug/discord-wavenet

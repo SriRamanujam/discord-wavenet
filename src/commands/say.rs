@@ -102,7 +102,7 @@ pub async fn say(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
             input: Some(SynthesisInput {
                 input_source: Some(InputSource::Ssml(format!(
                     "<speak>{}</speak>",
-                    args.message().to_string()
+                    args.message()
                 ))),
             }),
             voice: Some(VoiceSelectionParams {

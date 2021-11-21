@@ -38,6 +38,9 @@ jobs:
         name: Set lowercase repository in environment
         run: echo "REPOSITORY_LOWERCASE=${GITHUB_REPOSITORY,,}" >> $GITHUB_ENV
       -
+        name: Debugging in prod
+        run: ls -alh target/release/*
+      -
         name: Create and push Docker image
         id: docker_build
         uses: docker/build-push-action@v2

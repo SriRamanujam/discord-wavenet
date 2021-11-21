@@ -10,7 +10,7 @@ ENV DISCORD_TOKEN="" GOOGLE_API_CREDENTIALS="" RUST_LOG=info DEBIAN_FRONTEND=non
 LABEL org.opencontainers.image.source="https://github.com/SriRamanujam/discord-wavenet"
 
 # This stuff doesn't update quite as often
-COPY ./LICENSE /LICENSE
+COPY LICENSE /LICENSE
 CMD ["/discord-wavenet"]
 
 # This stuff updates a bunch
@@ -18,4 +18,4 @@ RUN apt-get update && \
     apt-get upgrade -y && \
     apt-get install -y ca-certificates ffmpeg && \
     rm -rf /var/lib/apt/lists/*
-COPY ./target/release/discord-wavenet /discord-wavenet
+COPY target/release/discord-wavenet /discord-wavenet

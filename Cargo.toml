@@ -9,7 +9,7 @@ edition = "2018"
 [dependencies]
 songbird = { version = "0.2", features = ["builtin-queue"] }
 serenity = { version = "0.10", features = ["cache", "standard_framework", "voice", "rustls_backend"]}
-googapis = { version = "0.4", features = [ "google-cloud-texttospeech-v1" ] }
+googapis = { version = "0.5", features = [ "google-cloud-texttospeech-v1" ] }
 gouth = "0.2"
 tonic = { version = "0.4", features = ["tls"] }
 prost = "0.7"

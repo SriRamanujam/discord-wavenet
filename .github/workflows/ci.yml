@@ -60,7 +60,7 @@ jobs:
           push: true
           no-cache: true
           context: .
-          build_args: |
+          build-args: |
             TARGET_TRIPLE=${{ matrix.target }}
           tags: |
             ghcr.io/${{ env.REPOSITORY_LOWERCASE }}:${{ env.RELEASE_VERSION }}

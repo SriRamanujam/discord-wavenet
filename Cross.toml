@@ -1,0 +1,5 @@
+[build.env]
+passthrough = [
+    "LIBOPUS_STATIC",
+    "OPUS_STATIC"
+]

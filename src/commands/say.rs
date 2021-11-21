@@ -19,10 +19,7 @@ use serenity::{
     prelude::TypeMapKey,
 };
 use songbird::{create_player, Event, EventContext, TrackEvent};
-use songbird::{
-    events::EventHandler as VoiceEventHandler,
-    id::GuildId,
-};
+use songbird::{events::EventHandler as VoiceEventHandler, id::GuildId};
 use tonic::transport::Channel;
 
 use crate::commands::{
@@ -105,7 +102,7 @@ pub async fn say(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
             input: Some(SynthesisInput {
                 input_source: Some(InputSource::Ssml(format!(
                     "<speak>{}</speak>",
-                    args.message().to_string()
+                    args.message()
                 ))),
             }),
             voice: Some(VoiceSelectionParams {

@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - github-actions-revamp
 
 jobs:
   build:
@@ -23,9 +24,26 @@ jobs:
           target: ${{ matrix.target }}
           override: true
       -
+        uses: Swatinem/rust-cache@v1.3.0
+      -
         name: Build
         uses: actions-rs/cargo@v1
         with:
           use-cross: true
           command: build
           args: --target ${{ matrix.target }} --release
+      -
+        name: Set tag name in environment
+        run: echo "RELEASE_VERSION=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
+      -
+        name: Set lowercase repository in environment
+        run: echo "REPOSITORY_LOWERCASE=${GITHUB_REPOSITORY,,}" >> $GITHUB_ENV
+      -
+        name: Build and push
+        id: docker_build
+        uses: docker/build-push-action@v2
+        with:
+          push: true
+          context: .
+          tags: |
+            ghcr.io/${{ env.REPOSITORY_LOWERCASE }}:${{ env.RELEASE_VERSION }}

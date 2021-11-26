@@ -6,10 +6,10 @@ use std::{
     },
 };
 
-use anyhow::anyhow;
-use googapis::google::cloud::texttospeech::v1::{
-    synthesis_input::InputSource, text_to_speech_client::TextToSpeechClient, AudioConfig,
-    AudioEncoding, SsmlVoiceGender, SynthesisInput, SynthesizeSpeechRequest, VoiceSelectionParams,
+use anyhow::{anyhow, Context as anyhowContext};
+use google_texttospeech1::{
+    api::{AudioConfig, SynthesisInput, SynthesizeSpeechRequest, VoiceSelectionParams},
+    Texttospeech,
 };
 use serenity::{
     async_trait,
@@ -20,7 +20,6 @@ use serenity::{
 };
 use songbird::{create_player, Event, EventContext, TrackEvent};
 use songbird::{events::EventHandler as VoiceEventHandler, id::GuildId};
-use tonic::transport::Channel;
 
 use crate::commands::{
     get_songbird_from_ctx, get_voice_channel_id, IdleDurations, NOT_IN_SAME_VOICE_CHANNEL_MESSAGE,
@@ -29,7 +28,7 @@ use crate::commands::{
 
 pub struct TtsService;
 impl TypeMapKey for TtsService {
-    type Value = TextToSpeechClient<Channel>;
+    type Value = Texttospeech;
 }
 
 pub struct Voices;
@@ -89,50 +88,52 @@ pub async fn say(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
     }
 
     let res = {
-        let mut data = ctx.data.write().await;
+        let data = ctx.data.read().await;
         let voices = data
             .get::<Voices>()
             .expect("There should have been voices here.");
         let voice = voices[fastrand::usize(..voices.len())].clone();
 
         let tts_service = data
-            .get_mut::<TtsService>()
+            .get::<TtsService>()
             .expect("There should have been a TTS service here.");
+
         let req = SynthesizeSpeechRequest {
+            audio_config: Some(AudioConfig {
+                audio_encoding: Some("LINEAR16".to_string()),
+                effects_profile_id: None,
+                pitch: Some(0.0),
+                sample_rate_hertz: None,
+                speaking_rate: None,
+                volume_gain_db: None,
+            }),
             input: Some(SynthesisInput {
-                input_source: Some(InputSource::Ssml(format!(
-                    "<speak>{}</speak>",
-                    args.message()
-                ))),
+                ssml: Some(format!("<speak>{}</speak>", args.message())),
+                text: None,
             }),
             voice: Some(VoiceSelectionParams {
-                language_code: "en-US".to_string(),
-                name: voice,
-                ssml_gender: SsmlVoiceGender::Unspecified as i32,
-            }),
-            audio_config: Some(AudioConfig {
-                audio_encoding: AudioEncoding::Linear16 as i32,
-                speaking_rate: 0.0,
-                pitch: 0.0,
-                volume_gain_db: 0.0,
-                sample_rate_hertz: 0,
-                effects_profile_id: vec![],
+                language_code: Some("en-US".to_string()),
+                name: Some(voice),
+                ssml_gender: None,
             }),
         };
 
-        let res = tts_service
-            .synthesize_speech(req)
+        let (_, res) = tts_service
+            .text()
+            .synthesize(req)
+            .doit()
             .await
-            .map_err(|s| anyhow!("Could not make TTS API call: {}", s.message()))?;
+            .context("Could not make TTS API call")?;
 
-        res
+        match res.audio_content {
+            Some(c) => base64::decode(c).context("Could not decode base64 audio content!")?,
+            None => return Err(anyhow!("No audio content returned from API!").into()),
+        }
     };
 
     if let Some(handler_lock) = manager.get(guild_id) {
-        let response = res.into_inner();
-
         let mut file = tempfile::NamedTempFile::new()?;
-        file.write_all(&response.audio_content)?;
+        file.write_all(&res)?;
 
         let input = songbird::ffmpeg(file.path())
             .await

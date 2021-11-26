@@ -126,9 +126,7 @@ pub async fn say(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
             .context("Could not make TTS API call")?;
 
         match res.audio_content {
-            Some(c) => {
-                base64::decode(c).context("Could not decode base64 audio content!")?
-            }
+            Some(c) => base64::decode(c).context("Could not decode base64 audio content!")?,
             None => return Err(anyhow!("No audio content returned from API!").into()),
         }
     };

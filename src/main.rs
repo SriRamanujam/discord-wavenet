@@ -18,28 +18,33 @@ mod commands;
 use commands::{join::*, say::*, IdleDurations};
 
 #[tracing::instrument(skip(hub))]
-async fn get_voices(hub: &Texttospeech) -> anyhow::Result<Vec<String>> {
+async fn get_voices(hub: &Texttospeech) -> anyhow::Result<HashMap<String, Vec<String>>> {
     let (_, response) = hub
         .voices()
         .list()
-        .language_code("en-US")
         .doit()
         .await
         .context("Could not make list voices request!")?;
 
-    Ok(response
-        .voices
-        .into_iter()
-        .flatten()
-        .filter_map(|v| {
-            let name = v.name.expect("Should have been a name here");
-            if name.contains("Wavenet") {
-                Some(name)
-            } else {
-                None
+    let mut x = HashMap::new();
+    let mut counter = 0;
+
+    for v in response.voices.into_iter().flatten() {
+        let name = v.name.expect("Should have been a name here");
+        if name.contains("Wavenet") {
+            let language_codes = v
+                .language_codes
+                .expect("Should have been a language code here");
+            for code in language_codes {
+                x.entry(code).or_insert_with(Vec::new).push(name.clone());
+                counter += 1;
             }
-        })
-        .collect::<Vec<_>>())
+        }
+    }
+
+    tracing::info!("Loaded {} Wavenet voices", counter);
+
+    Ok(x)
 }
 
 struct ReadyNotifier;
@@ -82,10 +87,6 @@ async fn main() -> anyhow::Result<()> {
     );
 
     let voices = get_voices(&hub).await?;
-    tracing::info!(
-        "Loading {} Wavenet voices for en-US text to speech",
-        voices.len()
-    );
 
     let framework = StandardFramework::new()
         .configure(|c| c.prefix(&prefix))

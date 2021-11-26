@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     io::Write,
     sync::{
         atomic::{AtomicUsize, Ordering},
@@ -33,7 +34,7 @@ impl TypeMapKey for TtsService {
 
 pub struct Voices;
 impl TypeMapKey for Voices {
-    type Value = Vec<String>;
+    type Value = HashMap<String, Vec<String>>;
 }
 
 struct TrackCleanup {
@@ -91,7 +92,9 @@ pub async fn say(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
         let data = ctx.data.read().await;
         let voices = data
             .get::<Voices>()
-            .expect("There should have been voices here.");
+            .expect("There should have been voices here.")
+            .get("en-US") // TODO: change this to be dynamic!
+            .context("No voices found for this language code!")?;
         let voice = voices[fastrand::usize(..voices.len())].clone();
 
         let tts_service = data

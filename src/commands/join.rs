@@ -5,10 +5,10 @@ use std::{
 
 use anyhow::anyhow;
 use serenity::{
-    builder::CreateApplicationCommand,
+    builder::CreateApplicationCommandOption,
     client::Context,
     framework::standard::{macros::command, CommandResult},
-    model::channel::Message,
+    model::{channel::Message, interactions::application_command::ApplicationCommandOptionType},
 };
 use songbird::{
     error::JoinResult,
@@ -49,10 +49,11 @@ pub async fn join(ctx: &Context, msg: &Message) -> CommandResult {
     do_join(ctx, msg, channel_id, guild_id).await
 }
 
-pub fn create_command() -> CreateApplicationCommand {
-    CreateApplicationCommand::default()
+pub fn create_command() -> CreateApplicationCommandOption {
+    CreateApplicationCommandOption::default()
         .name("join")
         .description("Join your current voice channel")
+        .kind(ApplicationCommandOptionType::SubCommand)
         .clone()
 }
 

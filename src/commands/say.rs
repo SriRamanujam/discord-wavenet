@@ -14,7 +14,7 @@ use google_texttospeech1::{
 };
 use serenity::{
     async_trait,
-    builder::CreateApplicationCommand,
+    builder::CreateApplicationCommandOption,
     client::Context,
     framework::standard::{macros::command, Args, CommandResult},
     model::{channel::Message, interactions::application_command::ApplicationCommandOptionType},
@@ -187,23 +187,21 @@ pub async fn say(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
     Ok(())
 }
 
-pub fn create_command() -> CreateApplicationCommand {
-    CreateApplicationCommand::default()
+pub fn create_command() -> CreateApplicationCommandOption {
+    CreateApplicationCommandOption::default()
         .name("say")
-        .description("Say something into the channel")
-        .create_option(|option| {
-            option
-                .name("message")
+        .description("Say something into the voice channel you are currently in")
+        .kind(ApplicationCommandOptionType::SubCommand)
+        .create_sub_option(|o| {
+            o.name("message")
                 .description("What you want the bot to say")
                 .kind(ApplicationCommandOptionType::String)
                 .required(true)
         })
-        .create_option(|option| {
-            option
-                .name("language")
-                .description("Choose a BC-47 country code to use. Defaults to en-US.")
+        .create_sub_option(|o| {
+            o.name("language")
+                .description("A language to use (default en-US). You can get the list of languages with `/tugboat languages`")
                 .kind(ApplicationCommandOptionType::String)
-                .add_string_choice("en-US", "en-US")
                 .required(false)
         })
         .clone()

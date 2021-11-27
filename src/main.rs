@@ -15,7 +15,7 @@ use tracing_subscriber::EnvFilter;
 
 mod commands;
 
-use commands::{join::*, say::*, IdleDurations};
+use commands::{join::*, say::*, CommandHandler, IdleDurations};
 
 #[tracing::instrument(skip(hub))]
 async fn get_voices(hub: &Texttospeech) -> anyhow::Result<HashMap<String, Vec<String>>> {
@@ -68,6 +68,10 @@ async fn main() -> anyhow::Result<()> {
 
     let discord_token =
         std::env::var("DISCORD_TOKEN").context("Could not find env var DISCORD_TOKEN")?;
+    let application_id = std::env::var("DISCORD_APPLICATION_ID")
+        .context("Could not find env var DISCORD_APPLICATION_ID")?
+        .parse::<u64>()
+        .context("Invalid application id")?;
     let api_path = std::env::var("GOOGLE_API_CREDENTIALS")
         .context("Could not find env var GOOGLE_API_CREDENTIALS")?;
     let prefix = std::env::var("PREFIX").unwrap_or_else(|_| "::".to_owned());
@@ -94,7 +98,9 @@ async fn main() -> anyhow::Result<()> {
 
     let mut client = Client::builder(&discord_token)
         .event_handler(ReadyNotifier)
+        .event_handler(CommandHandler)
         .framework(framework)
+        .application_id(application_id)
         .register_songbird()
         .await
         .context("Could not initialize Discord client")?;

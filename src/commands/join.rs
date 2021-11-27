@@ -5,6 +5,7 @@ use std::{
 
 use anyhow::anyhow;
 use serenity::{
+    builder::CreateApplicationCommand,
     client::Context,
     framework::standard::{macros::command, CommandResult},
     model::channel::Message,
@@ -46,6 +47,13 @@ pub async fn join(ctx: &Context, msg: &Message) -> CommandResult {
     }
 
     do_join(ctx, msg, channel_id, guild_id).await
+}
+
+pub fn create_command() -> CreateApplicationCommand {
+    CreateApplicationCommand::default()
+        .name("join")
+        .description("Join your current voice channel")
+        .clone()
 }
 
 /// Inner function for joining mostly so that I can have the say command

@@ -1,7 +1,14 @@
 use serenity::{
     async_trait,
-    client::Context,
-    model::{channel::Message, guild::Guild},
+    builder::{CreateApplicationCommand, CreateApplicationCommands},
+    client::{Context, EventHandler},
+    model::{
+        channel::Message,
+        guild::{Guild, GuildStatus},
+        id::GuildId as SerenityGuildId,
+        interactions::Interaction,
+        prelude::Ready,
+    },
     prelude::TypeMapKey,
 };
 use songbird::{
@@ -15,6 +22,7 @@ use std::{
         atomic::{AtomicUsize, Ordering},
         Arc,
     },
+    vec,
 };
 
 use crate::commands::join::do_leave;
@@ -79,4 +87,49 @@ fn get_voice_channel_id(guild: &Guild, msg: &Message) -> Option<ChannelId> {
         .get(&msg.author.id)
         .and_then(|vs| vs.channel_id)
         .map(ChannelId::from)
+}
+
+pub struct CommandHandler;
+
+impl CommandHandler {
+    async fn set_application_commands_on_guild(&self, guild_id: SerenityGuildId, ctx: &Context) {
+        let commands = vec![join::create_command(), say::create_command()];
+
+        let r = guild_id
+            .set_application_commands(&ctx.http, |c| c.set_application_commands(commands))
+            .await;
+
+        tracing::info!(
+            ?guild_id,
+            "Registered the following slash commands: {:#?}",
+            r
+        );
+    }
+}
+
+#[async_trait]
+impl EventHandler for CommandHandler {
+    async fn ready(&self, ctx: Context, ready: Ready) {
+        tracing::info!("ready callback has fired");
+        for x in &ready.guilds {
+            match x {
+                GuildStatus::OnlinePartialGuild(g) => {
+                    tracing::info!("Registering command for partial guild {:?}", g);
+                    self.set_application_commands_on_guild(g.id, &ctx).await
+                }
+                GuildStatus::OnlineGuild(g) => {
+                    tracing::info!("Registering command for guild {:?}", g);
+                    self.set_application_commands_on_guild(g.id, &ctx).await
+                }
+                GuildStatus::Offline(g) => {
+                    tracing::info!("Guild unavailable: {:?}", g);
+                    self.set_application_commands_on_guild(g.id, &ctx).await
+                }
+                _ => {
+                    tracing::info!("Uknown message");
+                    continue;
+                }
+            }
+        }
+    }
 }

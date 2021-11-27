@@ -15,7 +15,7 @@ use tracing_subscriber::EnvFilter;
 
 mod commands;
 
-use commands::{join::*, say::*, CommandHandler, IdleDurations};
+use commands::{join::*, leave::*, say::*, CommandHandler, IdleDurations};
 
 #[tracing::instrument(skip(hub))]
 async fn get_voices(hub: &Texttospeech) -> anyhow::Result<HashMap<String, Vec<String>>> {

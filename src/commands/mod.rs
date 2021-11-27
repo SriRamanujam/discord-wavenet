@@ -5,6 +5,7 @@ use serenity::{
         channel::Message,
         guild::{Guild, GuildStatus},
         id::GuildId as SerenityGuildId,
+        interactions::{Interaction, InteractionResponseType},
         prelude::Ready,
     },
     prelude::TypeMapKey,
@@ -23,9 +24,10 @@ use std::{
     vec,
 };
 
-use crate::commands::join::do_leave;
+use crate::commands::leave::do_leave;
 
 pub mod join;
+pub(crate) mod leave;
 pub mod say;
 
 const NOT_IN_VOICE_CHANNEL_MESSAGE: &str =
@@ -91,7 +93,11 @@ pub struct CommandHandler;
 
 impl CommandHandler {
     async fn set_application_commands_on_guild(&self, guild_id: SerenityGuildId, ctx: &Context) {
-        let options = vec![join::create_command(), say::create_command()];
+        let options = vec![
+            join::create_command(),
+            say::create_command(),
+            leave::create_command(),
+        ];
 
         /*
         // TODO:
@@ -126,6 +132,24 @@ impl CommandHandler {
 
 #[async_trait]
 impl EventHandler for CommandHandler {
+    async fn interaction_create(&self, ctx: Context, interaction: Interaction) {
+        if let Interaction::ApplicationCommand(command) = interaction {
+            tracing::info!(data=?command.data, "got command interaction!");
+
+            if let Err(e) = command
+                .create_interaction_response(&ctx.http, |r| {
+                    r.kind(InteractionResponseType::ChannelMessageWithSource)
+                        .interaction_response_data(|message| {
+                            message.content("Not implemented :(".to_string())
+                        })
+                })
+                .await
+            {
+                tracing::error!(?e, "Could not respond to slash command");
+            }
+        }
+    }
+
     async fn ready(&self, ctx: Context, ready: Ready) {
         tracing::info!("ready callback has fired");
         for x in &ready.guilds {

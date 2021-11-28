@@ -345,9 +345,9 @@ pub async fn execute(
             }
             None => {
                 file.close()?;
-                return Ok(
+                return Err(anyhow!(
                     "Unexpected error. Please contact bot admin and tell them \"Blue Rhinoceros\""
-                        .into(),
+                        )
                 );
             }
         }
@@ -360,7 +360,7 @@ pub async fn execute(
         return Ok("Not in a voice channel right now.".into());
     }
 
-    Ok(String::from("Not implemented"))
+    Ok(message)
 }
 
 pub fn create_command() -> CreateApplicationCommandOption {

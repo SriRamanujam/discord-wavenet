@@ -133,7 +133,7 @@ impl CommandHandler {
             .create_interaction_response(http, |r| {
                 r.kind(InteractionResponseType::ChannelMessageWithSource)
                     .interaction_response_data(|message| {
-                        message.content("Not implemented :(".to_string())
+                        message.content(content.to_owned())
                     })
             })
             .await

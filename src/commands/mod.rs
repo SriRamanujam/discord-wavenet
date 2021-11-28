@@ -36,6 +36,7 @@ use std::{
 use crate::commands::leave::do_leave;
 
 pub mod join;
+pub(crate) mod languages;
 pub(crate) mod leave;
 pub mod say;
 pub(crate) mod skip;
@@ -121,6 +122,7 @@ pub fn register_commands() -> Commands {
         Arc::new(join::JoinCommand),
         Arc::new(leave::LeaveCommand),
         Arc::new(skip::SkipCommand),
+        Arc::new(languages::LanguagesCommand),
     ];
 
     v.into_iter()

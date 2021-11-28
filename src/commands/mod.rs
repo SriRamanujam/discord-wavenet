@@ -116,7 +116,7 @@ impl TypeMapKey for CommandsMap {
 /// but it'll work for now.
 pub fn register_commands() -> Commands {
     let v: Vec<Box<dyn TugboatCommand + Send + Sync>> =
-        vec![Box::new(say::SayCommand), Box::new(join::JoinCommand), Box::new(leave::LeaveCommand)];
+        vec![Box::new(say::SayCommand), Box::new(join::JoinCommand), Box::new(leave::LeaveCommand), Box::new(skip::SkipCommand)];
 
     v.into_iter()
         .map(|c| (c.get_name(), c))

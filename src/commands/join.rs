@@ -1,12 +1,25 @@
 use std::{sync::atomic::Ordering, time::Duration};
 
 use anyhow::anyhow;
-use serenity::{builder::CreateApplicationCommandOption, client::Context, framework::standard::{macros::command, CommandResult}, model::{channel::Message, guild::Guild, interactions::application_command::{ApplicationCommandInteractionDataOption, ApplicationCommandOptionType}}};
+use serenity::async_trait;
+use serenity::{
+    builder::CreateApplicationCommandOption,
+    client::Context,
+    framework::standard::{macros::command, CommandResult},
+    model::{
+        channel::Message,
+        guild::Guild,
+        interactions::application_command::{
+            ApplicationCommandInteractionDataOption, ApplicationCommandOptionType,
+        },
+    },
+};
 use songbird::{
     id::{ChannelId, GuildId as SongbirdGuildId},
     Event,
 };
 
+use super::TugboatCommand;
 use crate::commands::{
     get_songbird_from_ctx, get_voice_channel_id, IdleDurationTracker, IdleDurations,
     NOT_IN_VOICE_CHANNEL_MESSAGE,
@@ -38,14 +51,6 @@ pub async fn join(ctx: &Context, msg: &Message) -> CommandResult {
     }
 
     do_join(ctx, msg, channel_id, guild_id).await
-}
-
-pub fn create_command() -> CreateApplicationCommandOption {
-    CreateApplicationCommandOption::default()
-        .name("join")
-        .description("Join your current voice channel")
-        .kind(ApplicationCommandOptionType::SubCommand)
-        .clone()
 }
 
 /// Inner function for joining mostly so that I can have the say command
@@ -91,40 +96,64 @@ pub(super) async fn do_join(
     Ok(())
 }
 
-pub(super) async fn execute(
-    ctx: &Context,
-    options: &[ApplicationCommandInteractionDataOption],
-    guild: Guild,
-    channel_id: ChannelId,
-) -> anyhow::Result<String> {
-    tracing::debug!(?guild, ?channel_id, "Attempting to join voice channel");
+pub struct JoinCommand;
 
-    let manager = get_songbird_from_ctx(ctx).await;
-    let (handle_lock, success) = manager.join(guild.id, channel_id).await;
+#[async_trait]
+impl TugboatCommand for JoinCommand {
+    async fn execute(
+        &self,
+        ctx: &Context,
+        options: &[ApplicationCommandInteractionDataOption],
+        guild: Guild,
+        channel_id: ChannelId,
+    ) -> anyhow::Result<String> {
+        tracing::debug!(?guild, ?channel_id, "Attempting to join voice channel");
 
-    if success.is_ok() {
-        // create the duration tracking atomic usize
-        let duration_tracking = {
-            let mut data = ctx.data.write().await;
-            let durations = data
-                .get_mut::<IdleDurations>()
-                .expect("join durations hashmap should be here");
-            let d = durations.entry(songbird::id::GuildId::from(guild.id)).or_default();
-            d.store(0, Ordering::SeqCst);
-            d.clone()
-        };
+        let manager = get_songbird_from_ctx(ctx).await;
+        let (handle_lock, success) = manager.join(guild.id, channel_id).await;
 
-        {
-            let mut handle = handle_lock.lock().await;
+        if success.is_ok() {
+            // create the duration tracking atomic usize
+            let duration_tracking = {
+                let mut data = ctx.data.write().await;
+                let durations = data
+                    .get_mut::<IdleDurations>()
+                    .expect("join durations hashmap should be here");
+                let d = durations
+                    .entry(songbird::id::GuildId::from(guild.id))
+                    .or_default();
+                d.store(0, Ordering::SeqCst);
+                d.clone()
+            };
 
-            handle.add_global_event(
-                Event::Periodic(Duration::from_secs(60), None),
-                IdleDurationTracker::new(duration_tracking, manager.clone(), songbird::id::GuildId::from(guild.id)),
-            );
+            {
+                let mut handle = handle_lock.lock().await;
+
+                handle.add_global_event(
+                    Event::Periodic(Duration::from_secs(60), None),
+                    IdleDurationTracker::new(
+                        duration_tracking,
+                        manager.clone(),
+                        songbird::id::GuildId::from(guild.id),
+                    ),
+                );
+            }
+        } else {
+            return Err(anyhow!("Could not join voice channel."));
         }
-    } else {
-        return Err(anyhow!("Could not join voice channel."));
+
+        Ok("Joined voice channel".into())
     }
 
-    Ok("Joined voice channel".into())
+    fn create_command(&self) -> CreateApplicationCommandOption {
+        CreateApplicationCommandOption::default()
+            .name("join")
+            .description("Join your current voice channel")
+            .kind(ApplicationCommandOptionType::SubCommand)
+            .clone()
+    }
+
+    fn get_name(&self) -> String {
+        String::from("join")
+    }
 }

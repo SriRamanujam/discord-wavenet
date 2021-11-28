@@ -1,4 +1,23 @@
-use serenity::{async_trait, client::{Context, EventHandler}, http::Http, model::{channel::Message, guild::{Guild, GuildStatus}, id::GuildId as SerenityGuildId, interactions::{Interaction, InteractionResponseType, application_command::ApplicationCommandInteraction}, prelude::{Ready, User}}, prelude::TypeMapKey};
+use anyhow::anyhow;
+use serenity::{
+    async_trait,
+    builder::CreateApplicationCommandOption,
+    client::{Context, EventHandler},
+    http::Http,
+    model::{
+        channel::Message,
+        guild::{Guild, GuildStatus},
+        id::GuildId as SerenityGuildId,
+        interactions::{
+            application_command::{
+                ApplicationCommandInteraction, ApplicationCommandInteractionDataOption,
+            },
+            Interaction, InteractionResponseType,
+        },
+        prelude::{Ready, User},
+    },
+    prelude::TypeMapKey,
+};
 use songbird::{
     events::EventHandler as VoiceEventHandler,
     id::{ChannelId, GuildId},
@@ -12,14 +31,13 @@ use std::{
     },
     vec,
 };
-use anyhow::anyhow;
 
 use crate::commands::leave::do_leave;
 
 pub mod join;
 pub(crate) mod leave;
-pub(crate) mod skip;
 pub mod say;
+pub(crate) mod skip;
 
 const NOT_IN_VOICE_CHANNEL_MESSAGE: &str =
     "Can't tell me what to do if you're not in a voice channel!";
@@ -88,15 +106,49 @@ fn get_voice_channel_by_user(guild: &Guild, user: &User) -> Option<ChannelId> {
         .map(ChannelId::from)
 }
 
+pub struct CommandsMap;
+pub type Commands = HashMap<String, Box<dyn TugboatCommand + Send + Sync + 'static>>;
+impl TypeMapKey for CommandsMap {
+    type Value = Commands;
+}
+
+/// Static registration of all new commands. Yes this is rather inconvenient,
+/// but it'll work for now.
+pub fn register_commands() -> Commands {
+    let v: Vec<Box<dyn TugboatCommand + Send + Sync>> =
+        vec![Box::new(say::SayCommand), Box::new(join::JoinCommand)];
+
+    v.into_iter()
+        .map(|c| (c.get_name(), c))
+        .collect::<Commands>()
+}
+
+#[async_trait]
+pub trait TugboatCommand {
+    async fn execute(
+        &self,
+        ctx: &Context,
+        options: &[ApplicationCommandInteractionDataOption],
+        guild: Guild,
+        channel_id: ChannelId,
+    ) -> anyhow::Result<String>;
+    fn create_command(&self) -> CreateApplicationCommandOption;
+    fn get_name(&self) -> String;
+}
+
 pub struct CommandHandler;
 
 impl CommandHandler {
     async fn set_application_commands_on_guild(&self, guild_id: SerenityGuildId, ctx: &Context) {
-        let options = vec![
-            join::create_command(),
-            say::create_command(),
-            leave::create_command(),
-        ];
+        let options = ctx
+            .data
+            .read()
+            .await
+            .get::<CommandsMap>()
+            .expect("Should have been commands here")
+            .values()
+            .map(|comm| comm.create_command())
+            .collect::<Vec<_>>();
 
         /*
         // TODO:
@@ -128,19 +180,21 @@ impl CommandHandler {
         }
     }
 
-    async fn send_interaction_response(&self, http: &impl AsRef<Http>, command: &ApplicationCommandInteraction, content: &str) {
+    async fn send_interaction_response(
+        &self,
+        http: &impl AsRef<Http>,
+        command: &ApplicationCommandInteraction,
+        content: &str,
+    ) {
         if let Err(e) = command
             .create_interaction_response(http, |r| {
                 r.kind(InteractionResponseType::ChannelMessageWithSource)
-                    .interaction_response_data(|message| {
-                        message.content(content.to_owned())
-                    })
+                    .interaction_response_data(|message| message.content(content.to_owned()))
             })
             .await
         {
             tracing::error!(?e, "Could not respond to slash command");
         }
-
     }
 }
 
@@ -149,7 +203,6 @@ impl EventHandler for CommandHandler {
     async fn interaction_create(&self, ctx: Context, interaction: Interaction) {
         if let Interaction::ApplicationCommand(command) = interaction {
             tracing::info!(data=?command.data, "got command interaction!");
-
 
             // since our top level command is always tugboat, we are interested in the first child of the options.
             let incoming = &command.data.options[0];
@@ -163,28 +216,55 @@ impl EventHandler for CommandHandler {
                         return;
                     }
                 },
-                None => return self.send_interaction_response(&ctx.http, &command, "Can't call this from a non-guild context").await
+                None => {
+                    return self
+                        .send_interaction_response(
+                            &ctx.http,
+                            &command,
+                            "Can't call this from a non-guild context",
+                        )
+                        .await
+                }
             };
 
             let channel_id = match get_voice_channel_by_user(&guild, &command.user) {
                 Some(c) => c,
-                None => return self.send_interaction_response(&ctx.http, &command, NOT_IN_SAME_VOICE_CHANNEL_MESSAGE).await
+                None => {
+                    return self
+                        .send_interaction_response(
+                            &ctx.http,
+                            &command,
+                            NOT_IN_SAME_VOICE_CHANNEL_MESSAGE,
+                        )
+                        .await
+                }
             };
 
-            // TODO: trait this out so that you don't have to hardcode
-            // every single interaction. you'll probably have to make a hashmap
-            // command name -> trait-implementing struct. gl
-            let response = match incoming.name.as_str() {
-                "join" => join::execute(&ctx, &incoming.options, guild, channel_id).await,
-                "say" => say::execute(&ctx, &incoming.options, guild, channel_id).await,
-                _ => Err(anyhow!("Not implemented :("))
+            let response = {
+                let data = ctx.data.read().await;
+                let commands = data
+                    .get::<CommandsMap>()
+                    .expect("Should have been commands here");
+                match commands.get(&incoming.name) {
+                    Some(c) => c.execute(&ctx, &incoming.options, guild, channel_id).await,
+                    None => Err(anyhow!("Unknown command {}", &incoming.name)),
+                }
             };
 
+            // dispatch to the relevant command in our command struct.
             match response {
-                Ok(s) => self.send_interaction_response(&ctx.http, &command, &s).await,
+                Ok(s) => {
+                    self.send_interaction_response(&ctx.http, &command, &s)
+                        .await
+                }
                 Err(e) => {
                     tracing::error!(?e, guild_id=?command.guild_id, "Error completing interaction");
-                    self.send_interaction_response(&ctx.http, &command, "Error completing interaction.").await
+                    self.send_interaction_response(
+                        &ctx.http,
+                        &command,
+                        "Error completing interaction.",
+                    )
+                    .await
                 }
             }
         }

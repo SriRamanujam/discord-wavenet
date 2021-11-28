@@ -17,6 +17,8 @@ mod commands;
 
 use commands::{join::*, leave::*, say::*, skip::*, CommandHandler, IdleDurations};
 
+use crate::commands::CommandsMap;
+
 #[tracing::instrument(skip(hub))]
 async fn get_voices(hub: &Texttospeech) -> anyhow::Result<HashMap<String, Vec<String>>> {
     let (_, response) = hub
@@ -110,6 +112,7 @@ async fn main() -> anyhow::Result<()> {
         data.insert::<TtsService>(hub);
         data.insert::<Voices>(voices);
         data.insert::<IdleDurations>(HashMap::new());
+        data.insert::<CommandsMap>(commands::register_commands());
     }
 
     let _ = client.start().await.map_err(|why| {

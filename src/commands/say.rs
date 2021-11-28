@@ -28,7 +28,7 @@ use serenity::{
     },
     prelude::TypeMapKey,
 };
-use songbird::{Event, EventContext, TrackEvent, create_player, id::ChannelId};
+use songbird::{create_player, id::ChannelId, Event, EventContext, TrackEvent};
 use songbird::{events::EventHandler as VoiceEventHandler, id::GuildId};
 
 use crate::commands::{
@@ -36,7 +36,7 @@ use crate::commands::{
     NOT_IN_VOICE_CHANNEL_MESSAGE,
 };
 
-use super::{get_voice_channel_by_user, join};
+use super::{get_voice_channel_by_user, join, CommandsMap, TugboatCommand};
 
 pub struct TtsService;
 impl TypeMapKey for TtsService {
@@ -197,174 +197,189 @@ pub async fn say(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
     Ok(())
 }
 
-pub async fn execute(
-    ctx: &Context,
-    options: &[ApplicationCommandInteractionDataOption],
-    guild: Guild,
-    channel_id: ChannelId,
-) -> anyhow::Result<String> {
-    let manager = get_songbird_from_ctx(ctx).await;
-    // if we're not in a voice channel for this guild, join the channel.
-    // if we're in another voice channel in the same guild, deny the say with a message.
-    match manager.get(guild.id) {
-        Some(s) => {
-            let r = s.lock().await;
-            let c = r.current_channel().expect("there should be a channel here");
-            if c != channel_id {
-                return Ok(NOT_IN_SAME_VOICE_CHANNEL_MESSAGE.into());
-            }
-        }
-        None => {
-            // we are not in a voice channel for this guild, join one.
-            // TODO: come back and fix this
-            // crate::commands::join::do_join(ctx, msg, channel_id, guild_id).await?;
-            join::execute(ctx, options, guild.clone(), channel_id).await?;
-        }
+pub struct SayCommand;
+
+#[async_trait]
+impl TugboatCommand for SayCommand {
+    fn get_name(&self) -> String {
+        String::from("say")
     }
 
-    let (message, language) = {
-        let mut m = None;
-        let mut c = None;
-        for option in options {
-            match option.name.as_str() {
-                "message" => {
-                    m = option
-                        .value
-                        .as_ref()
-                        .map(|v| match v {
-                            Value::String(s) => Some(s.to_owned()),
-                            _ => None,
-                        })
-                        .flatten();
+    async fn execute(
+        &self,
+        ctx: &Context,
+        options: &[ApplicationCommandInteractionDataOption],
+        guild: Guild,
+        channel_id: ChannelId,
+    ) -> anyhow::Result<String> {
+        let manager = get_songbird_from_ctx(ctx).await;
+        // if we're not in a voice channel for this guild, join the channel.
+        // if we're in another voice channel in the same guild, deny the say with a message.
+        match manager.get(guild.id) {
+            Some(s) => {
+                let r = s.lock().await;
+                let c = r.current_channel().expect("there should be a channel here");
+                if c != channel_id {
+                    return Ok(NOT_IN_SAME_VOICE_CHANNEL_MESSAGE.into());
                 }
-                "language" => {
-                    c = option
-                        .value
-                        .as_ref()
-                        .map(|v| match v {
-                            Value::String(s) => Some(s.to_owned()),
-                            _ => None,
-                        })
-                        .flatten();
-                }
-                _ => continue,
-            }
-        }
-
-        (m, c)
-    };
-
-    let message = match message {
-        Some(m) => {
-            if m.len() < 1 {
-                return Ok("Must supply a string with at least one character".into());
-            } else {
-                m
-            }
-        }
-        None => return Ok("Must supply a string with at least one character".into()),
-    };
-
-    let language_code = language.unwrap_or_else(|| "en-US".to_owned());
-
-    let res = {
-        let data = ctx.data.read().await;
-        let voices = data
-            .get::<Voices>()
-            .expect("There should have been voices here.")
-            .get(&language_code)
-            .context("No voices found for this language code!")?;
-        let voice = voices[fastrand::usize(..voices.len())].clone();
-
-        let tts_service = data
-            .get::<TtsService>()
-            .expect("There should have been a TTS service here.");
-
-        let req = SynthesizeSpeechRequest {
-            audio_config: Some(AudioConfig {
-                audio_encoding: Some("LINEAR16".to_string()),
-                effects_profile_id: None,
-                pitch: Some(0.0),
-                sample_rate_hertz: None,
-                speaking_rate: None,
-                volume_gain_db: None,
-            }),
-            input: Some(SynthesisInput {
-                ssml: Some(format!("<speak>{}</speak>", message)),
-                text: None,
-            }),
-            voice: Some(VoiceSelectionParams {
-                language_code: Some(language_code),
-                name: Some(voice),
-                ssml_gender: None,
-            }),
-        };
-
-        let (_, res) = tts_service
-            .text()
-            .synthesize(req)
-            .doit()
-            .await
-            .context("Could not make TTS API call")?;
-
-        match res.audio_content {
-            Some(c) => base64::decode(c).context("Could not decode base64 audio content!")?,
-            None => return Err(anyhow!("No audio content returned from API!").into()),
-        }
-    };
-
-    if let Some(handler_lock) = manager.get(guild.id) {
-        let mut file = tempfile::NamedTempFile::new()?;
-        file.write_all(&res)?;
-
-        let input = songbird::ffmpeg(file.path())
-            .await
-            .map_err(|_| anyhow!("Could not create ffmpeg player"))?;
-
-        let (track, track_handle) = create_player(input);
-
-        let maybe_idle_tracking = {
-            ctx.data
-                .read()
-                .await
-                .get::<IdleDurations>()
-                .expect("idle duration should be present")
-                .get(&GuildId::from(guild.id))
-                .cloned()
-        };
-
-        match maybe_idle_tracking {
-            Some(c) => {
-                track_handle.add_event(
-                    Event::Track(TrackEvent::End),
-                    TrackCleanup {
-                        _tmpfile: file,
-                        idle_tracking: c,
-                    },
-                )?;
             }
             None => {
-                file.close()?;
-                return Err(anyhow!(
-                    "Unexpected error. Please contact bot admin and tell them \"Blue Rhinoceros\""
-                        )
-                );
+                // we are not in a voice channel for this guild, join one.
+
+                let data = ctx.data.read().await;
+                let join_command = data
+                    .get::<CommandsMap>()
+                    .expect("Should have been commands here")
+                    .get("join")
+                    .expect("There should always be a join command");
+                join_command
+                    .execute(ctx, options, guild.clone(), channel_id)
+                    .await?;
             }
         }
 
-        {
-            let mut handler = handler_lock.lock().await;
-            handler.enqueue(track);
+        let (message, language) = {
+            let mut m = None;
+            let mut c = None;
+            for option in options {
+                match option.name.as_str() {
+                    "message" => {
+                        m = option
+                            .value
+                            .as_ref()
+                            .map(|v| match v {
+                                Value::String(s) => Some(s.to_owned()),
+                                _ => None,
+                            })
+                            .flatten();
+                    }
+                    "language" => {
+                        c = option
+                            .value
+                            .as_ref()
+                            .map(|v| match v {
+                                Value::String(s) => Some(s.to_owned()),
+                                _ => None,
+                            })
+                            .flatten();
+                    }
+                    _ => continue,
+                }
+            }
+
+            (m, c)
+        };
+
+        let message = match message {
+            Some(m) => {
+                if m.len() < 1 {
+                    return Ok("Must supply a string with at least one character".into());
+                } else {
+                    m
+                }
+            }
+            None => return Ok("Must supply a string with at least one character".into()),
+        };
+
+        let language_code = language.unwrap_or_else(|| "en-US".to_owned());
+
+        let res = {
+            let data = ctx.data.read().await;
+            let voices = data
+                .get::<Voices>()
+                .expect("There should have been voices here.")
+                .get(&language_code)
+                .context("No voices found for this language code!")?;
+            let voice = voices[fastrand::usize(..voices.len())].clone();
+
+            let tts_service = data
+                .get::<TtsService>()
+                .expect("There should have been a TTS service here.");
+
+            let req = SynthesizeSpeechRequest {
+                audio_config: Some(AudioConfig {
+                    audio_encoding: Some("LINEAR16".to_string()),
+                    effects_profile_id: None,
+                    pitch: Some(0.0),
+                    sample_rate_hertz: None,
+                    speaking_rate: None,
+                    volume_gain_db: None,
+                }),
+                input: Some(SynthesisInput {
+                    ssml: Some(format!("<speak>{}</speak>", message)),
+                    text: None,
+                }),
+                voice: Some(VoiceSelectionParams {
+                    language_code: Some(language_code),
+                    name: Some(voice),
+                    ssml_gender: None,
+                }),
+            };
+
+            let (_, res) = tts_service
+                .text()
+                .synthesize(req)
+                .doit()
+                .await
+                .context("Could not make TTS API call")?;
+
+            match res.audio_content {
+                Some(c) => base64::decode(c).context("Could not decode base64 audio content!")?,
+                None => return Err(anyhow!("No audio content returned from API!").into()),
+            }
+        };
+
+        if let Some(handler_lock) = manager.get(guild.id) {
+            let mut file = tempfile::NamedTempFile::new()?;
+            file.write_all(&res)?;
+
+            let input = songbird::ffmpeg(file.path())
+                .await
+                .map_err(|_| anyhow!("Could not create ffmpeg player"))?;
+
+            let (track, track_handle) = create_player(input);
+
+            let maybe_idle_tracking = {
+                ctx.data
+                    .read()
+                    .await
+                    .get::<IdleDurations>()
+                    .expect("idle duration should be present")
+                    .get(&GuildId::from(guild.id))
+                    .cloned()
+            };
+
+            match maybe_idle_tracking {
+                Some(c) => {
+                    track_handle.add_event(
+                        Event::Track(TrackEvent::End),
+                        TrackCleanup {
+                            _tmpfile: file,
+                            idle_tracking: c,
+                        },
+                    )?;
+                }
+                None => {
+                    file.close()?;
+                    return Err(anyhow!(
+                    "Unexpected error. Please contact bot admin and tell them \"Blue Rhinoceros\""
+                        ));
+                }
+            }
+
+            {
+                let mut handler = handler_lock.lock().await;
+                handler.enqueue(track);
+            }
+        } else {
+            return Ok("Not in a voice channel right now.".into());
         }
-    } else {
-        return Ok("Not in a voice channel right now.".into());
+
+        Ok(message)
     }
 
-    Ok(message)
-}
-
-pub fn create_command() -> CreateApplicationCommandOption {
-    CreateApplicationCommandOption::default()
+    fn create_command(&self) -> CreateApplicationCommandOption {
+        CreateApplicationCommandOption::default()
         .name("say")
         .description("Say something into the voice channel you are currently in")
         .kind(ApplicationCommandOptionType::SubCommand)
@@ -381,4 +396,5 @@ pub fn create_command() -> CreateApplicationCommandOption {
                 .required(false)
         })
         .clone()
+    }
 }

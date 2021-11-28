@@ -25,6 +25,7 @@ use songbird::{
 };
 use std::{
     collections::HashMap,
+    fmt::Display,
     sync::{
         atomic::{AtomicUsize, Ordering},
         Arc,
@@ -107,7 +108,7 @@ fn get_voice_channel_by_user(guild: &Guild, user: &User) -> Option<ChannelId> {
 }
 
 pub struct CommandsMap;
-pub type Commands = HashMap<String, Box<dyn TugboatCommand + Send + Sync + 'static>>;
+pub type Commands = HashMap<String, Arc<dyn TugboatCommand + Send + Sync + 'static>>;
 impl TypeMapKey for CommandsMap {
     type Value = Commands;
 }
@@ -115,8 +116,12 @@ impl TypeMapKey for CommandsMap {
 /// Static registration of all new commands. Yes this is rather inconvenient,
 /// but it'll work for now.
 pub fn register_commands() -> Commands {
-    let v: Vec<Box<dyn TugboatCommand + Send + Sync>> =
-        vec![Box::new(say::SayCommand), Box::new(join::JoinCommand), Box::new(leave::LeaveCommand), Box::new(skip::SkipCommand)];
+    let v: Vec<Arc<dyn TugboatCommand + Send + Sync>> = vec![
+        Arc::new(say::SayCommand),
+        Arc::new(join::JoinCommand),
+        Arc::new(leave::LeaveCommand),
+        Arc::new(skip::SkipCommand),
+    ];
 
     v.into_iter()
         .map(|c| (c.get_name(), c))
@@ -186,6 +191,7 @@ impl CommandHandler {
         command: &ApplicationCommandInteraction,
         content: &str,
     ) {
+        tracing::debug!(content, "Sending interaction response");
         if let Err(e) = command
             .create_interaction_response(http, |r| {
                 r.kind(InteractionResponseType::ChannelMessageWithSource)
@@ -194,6 +200,8 @@ impl CommandHandler {
             .await
         {
             tracing::error!(?e, "Could not respond to slash command");
+        } else {
+            tracing::debug!("Application command response sent successfully!");
         }
     }
 }
@@ -240,13 +248,25 @@ impl EventHandler for CommandHandler {
                 }
             };
 
-            let response = {
+            let dispatched_command = {
                 let data = ctx.data.read().await;
                 let commands = data
                     .get::<CommandsMap>()
                     .expect("Should have been commands here");
-                match commands.get(&incoming.name) {
-                    Some(c) => c.execute(&ctx, &incoming.options, guild, channel_id).await,
+                commands.get(&incoming.name).map(|v| v.clone())
+            };
+
+            let response = {
+                match dispatched_command {
+                    Some(c) => {
+                        tracing::debug!(
+                            requested_comm = incoming.name.as_str(),
+                            "Dispatching command"
+                        );
+                        let r = c.execute(&ctx, &incoming.options, guild, channel_id).await;
+                        tracing::debug!(result=?r, "We have received a result from our command!");
+                        r
+                    }
                     None => Err(anyhow!("Unknown command {}", &incoming.name)),
                 }
             };
@@ -254,6 +274,7 @@ impl EventHandler for CommandHandler {
             // dispatch to the relevant command in our command struct.
             match response {
                 Ok(s) => {
+                    tracing::trace!("We received a successful response, sending back result");
                     self.send_interaction_response(&ctx.http, &command, &s)
                         .await
                 }

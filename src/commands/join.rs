@@ -103,16 +103,17 @@ impl TugboatCommand for JoinCommand {
     async fn execute(
         &self,
         ctx: &Context,
-        options: &[ApplicationCommandInteractionDataOption],
+        _options: &[ApplicationCommandInteractionDataOption],
         guild: Guild,
         channel_id: ChannelId,
     ) -> anyhow::Result<String> {
-        tracing::debug!(?guild, ?channel_id, "Attempting to join voice channel");
+        tracing::debug!(guild=?guild.id, ?channel_id, "Attempting to join voice channel");
 
         let manager = get_songbird_from_ctx(ctx).await;
         let (handle_lock, success) = manager.join(guild.id, channel_id).await;
 
         if success.is_ok() {
+            tracing::trace!("Join complete");
             // create the duration tracking atomic usize
             let duration_tracking = {
                 let mut data = ctx.data.write().await;
@@ -123,6 +124,7 @@ impl TugboatCommand for JoinCommand {
                     .entry(songbird::id::GuildId::from(guild.id))
                     .or_default();
                 d.store(0, Ordering::SeqCst);
+                tracing::trace!("Created durationg tracking atomic usize");
                 d.clone()
             };
 
@@ -137,12 +139,14 @@ impl TugboatCommand for JoinCommand {
                         songbird::id::GuildId::from(guild.id),
                     ),
                 );
+                tracing::trace!("Created timer to count down 10 minutes");
             }
-        } else {
-            return Err(anyhow!("Could not join voice channel."));
-        }
 
-        Ok("Joined voice channel".into())
+            tracing::trace!("Returning success");
+            Ok("Joined voice channel".into())
+        } else {
+            Err(anyhow!("Could not join voice channel."))
+        }
     }
 
     fn create_command(&self) -> CreateApplicationCommandOption {

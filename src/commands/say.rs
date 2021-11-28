@@ -225,13 +225,15 @@ impl TugboatCommand for SayCommand {
             }
             None => {
                 // we are not in a voice channel for this guild, join one.
+                let join_command = {
+                    let data = ctx.data.read().await;
+                    data.get::<CommandsMap>()
+                        .expect("Should have been commands here")
+                        .get("join")
+                        .expect("There should always be a join command")
+                        .clone()
+                };
 
-                let data = ctx.data.read().await;
-                let join_command = data
-                    .get::<CommandsMap>()
-                    .expect("Should have been commands here")
-                    .get("join")
-                    .expect("There should always be a join command");
                 join_command
                     .execute(ctx, options, guild.clone(), channel_id)
                     .await?;

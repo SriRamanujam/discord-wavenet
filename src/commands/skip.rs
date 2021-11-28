@@ -1,8 +1,24 @@
 use std::sync::Arc;
 
 use anyhow::anyhow;
-use serenity::{async_trait, builder::CreateApplicationCommandOption, client::Context, framework::standard::{macros::command, CommandResult}, model::{channel::Message, guild::Guild, interactions::application_command::{ApplicationCommandInteractionDataOption, ApplicationCommandOptionType}}};
-use songbird::{Songbird, error::JoinResult, id::{ChannelId, GuildId}};
+use serenity::{
+    async_trait,
+    builder::CreateApplicationCommandOption,
+    client::Context,
+    framework::standard::{macros::command, CommandResult},
+    model::{
+        channel::Message,
+        guild::Guild,
+        interactions::application_command::{
+            ApplicationCommandInteractionDataOption, ApplicationCommandOptionType,
+        },
+    },
+};
+use songbird::{
+    error::JoinResult,
+    id::{ChannelId, GuildId},
+    Songbird,
+};
 
 use crate::commands::{
     get_songbird_from_ctx, get_voice_channel_id, NOT_IN_SAME_VOICE_CHANNEL_MESSAGE,
@@ -49,7 +65,6 @@ pub struct SkipCommand;
 
 #[async_trait]
 impl super::TugboatCommand for SkipCommand {
-    
     async fn execute(
         &self,
         ctx: &Context,
@@ -57,7 +72,7 @@ impl super::TugboatCommand for SkipCommand {
         guild: Guild,
         channel_id: ChannelId,
     ) -> anyhow::Result<String> {
-    let manager = get_songbird_from_ctx(ctx).await;
+        let manager = get_songbird_from_ctx(ctx).await;
 
         if let Some(call_lock) = manager.get(guild.id) {
             // don't allow the action if the user is not in the same channel.
@@ -75,16 +90,15 @@ impl super::TugboatCommand for SkipCommand {
         Ok("Skipped.".into())
     }
 
-    fn create_command(&self)->CreateApplicationCommandOption {
+    fn create_command(&self) -> CreateApplicationCommandOption {
         CreateApplicationCommandOption::default()
             .name("skip")
             .description("Skip the currently-playing track")
             .kind(ApplicationCommandOptionType::SubCommand)
             .clone()
-        
     }
 
-    fn get_name(&self)->String {
+    fn get_name(&self) -> String {
         String::from("skip")
     }
 }

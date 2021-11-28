@@ -12,21 +12,31 @@ use google_texttospeech1::{
     api::{AudioConfig, SynthesisInput, SynthesizeSpeechRequest, VoiceSelectionParams},
     Texttospeech,
 };
+use serde_json::Value;
+use serenity::model::{guild::Guild, id::GuildId as SerenityGuildId};
 use serenity::{
     async_trait,
     builder::CreateApplicationCommandOption,
     client::Context,
     framework::standard::{macros::command, Args, CommandResult},
-    model::{channel::Message, interactions::application_command::ApplicationCommandOptionType},
+    model::{
+        channel::Message,
+        interactions::application_command::{
+            ApplicationCommandInteractionDataOption, ApplicationCommandOptionType,
+        },
+        prelude::User,
+    },
     prelude::TypeMapKey,
 };
-use songbird::{create_player, Event, EventContext, TrackEvent};
+use songbird::{Event, EventContext, TrackEvent, create_player, id::ChannelId};
 use songbird::{events::EventHandler as VoiceEventHandler, id::GuildId};
 
 use crate::commands::{
     get_songbird_from_ctx, get_voice_channel_id, IdleDurations, NOT_IN_SAME_VOICE_CHANNEL_MESSAGE,
     NOT_IN_VOICE_CHANNEL_MESSAGE,
 };
+
+use super::{get_voice_channel_by_user, join};
 
 pub struct TtsService;
 impl TypeMapKey for TtsService {
@@ -187,6 +197,172 @@ pub async fn say(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
     Ok(())
 }
 
+pub async fn execute(
+    ctx: &Context,
+    options: &[ApplicationCommandInteractionDataOption],
+    guild: Guild,
+    channel_id: ChannelId,
+) -> anyhow::Result<String> {
+    let manager = get_songbird_from_ctx(ctx).await;
+    // if we're not in a voice channel for this guild, join the channel.
+    // if we're in another voice channel in the same guild, deny the say with a message.
+    match manager.get(guild.id) {
+        Some(s) => {
+            let r = s.lock().await;
+            let c = r.current_channel().expect("there should be a channel here");
+            if c != channel_id {
+                return Ok(NOT_IN_SAME_VOICE_CHANNEL_MESSAGE.into());
+            }
+        }
+        None => {
+            // we are not in a voice channel for this guild, join one.
+            // TODO: come back and fix this
+            // crate::commands::join::do_join(ctx, msg, channel_id, guild_id).await?;
+            join::execute(ctx, options, guild.clone(), channel_id).await?;
+        }
+    }
+
+    let (message, language) = {
+        let mut m = None;
+        let mut c = None;
+        for option in options {
+            match option.name.as_str() {
+                "message" => {
+                    m = option
+                        .value
+                        .as_ref()
+                        .map(|v| match v {
+                            Value::String(s) => Some(s.to_owned()),
+                            _ => None,
+                        })
+                        .flatten();
+                }
+                "language" => {
+                    c = option
+                        .value
+                        .as_ref()
+                        .map(|v| match v {
+                            Value::String(s) => Some(s.to_owned()),
+                            _ => None,
+                        })
+                        .flatten();
+                }
+                _ => continue,
+            }
+        }
+
+        (m, c)
+    };
+
+    let message = match message {
+        Some(m) => {
+            if m.len() < 1 {
+                return Ok("Must supply a string with at least one character".into());
+            } else {
+                m
+            }
+        }
+        None => return Ok("Must supply a string with at least one character".into()),
+    };
+
+    let language_code = language.unwrap_or_else(|| "en-US".to_owned());
+
+    let res = {
+        let data = ctx.data.read().await;
+        let voices = data
+            .get::<Voices>()
+            .expect("There should have been voices here.")
+            .get(&language_code)
+            .context("No voices found for this language code!")?;
+        let voice = voices[fastrand::usize(..voices.len())].clone();
+
+        let tts_service = data
+            .get::<TtsService>()
+            .expect("There should have been a TTS service here.");
+
+        let req = SynthesizeSpeechRequest {
+            audio_config: Some(AudioConfig {
+                audio_encoding: Some("LINEAR16".to_string()),
+                effects_profile_id: None,
+                pitch: Some(0.0),
+                sample_rate_hertz: None,
+                speaking_rate: None,
+                volume_gain_db: None,
+            }),
+            input: Some(SynthesisInput {
+                ssml: Some(format!("<speak>{}</speak>", message)),
+                text: None,
+            }),
+            voice: Some(VoiceSelectionParams {
+                language_code: Some(language_code),
+                name: Some(voice),
+                ssml_gender: None,
+            }),
+        };
+
+        let (_, res) = tts_service
+            .text()
+            .synthesize(req)
+            .doit()
+            .await
+            .context("Could not make TTS API call")?;
+
+        match res.audio_content {
+            Some(c) => base64::decode(c).context("Could not decode base64 audio content!")?,
+            None => return Err(anyhow!("No audio content returned from API!").into()),
+        }
+    };
+
+    if let Some(handler_lock) = manager.get(guild.id) {
+        let mut file = tempfile::NamedTempFile::new()?;
+        file.write_all(&res)?;
+
+        let input = songbird::ffmpeg(file.path())
+            .await
+            .map_err(|_| anyhow!("Could not create ffmpeg player"))?;
+
+        let (track, track_handle) = create_player(input);
+
+        let maybe_idle_tracking = {
+            ctx.data
+                .read()
+                .await
+                .get::<IdleDurations>()
+                .expect("idle duration should be present")
+                .get(&GuildId::from(guild.id))
+                .cloned()
+        };
+
+        match maybe_idle_tracking {
+            Some(c) => {
+                track_handle.add_event(
+                    Event::Track(TrackEvent::End),
+                    TrackCleanup {
+                        _tmpfile: file,
+                        idle_tracking: c,
+                    },
+                )?;
+            }
+            None => {
+                file.close()?;
+                return Ok(
+                    "Unexpected error. Please contact bot admin and tell them \"Blue Rhinoceros\""
+                        .into(),
+                );
+            }
+        }
+
+        {
+            let mut handler = handler_lock.lock().await;
+            handler.enqueue(track);
+        }
+    } else {
+        return Ok("Not in a voice channel right now.".into());
+    }
+
+    Ok(String::from("Not implemented"))
+}
+
 pub fn create_command() -> CreateApplicationCommandOption {
     CreateApplicationCommandOption::default()
         .name("say")
@@ -205,40 +381,4 @@ pub fn create_command() -> CreateApplicationCommandOption {
                 .required(false)
         })
         .clone()
-}
-
-#[command]
-#[only_in(guilds)]
-pub async fn skip(ctx: &Context, msg: &Message) -> CommandResult {
-    let guild = msg
-        .guild(&ctx.cache)
-        .await
-        .ok_or_else(|| anyhow!("Could not fetch guild"))?;
-    let guild_id = GuildId::from(guild.id);
-
-    let manager = get_songbird_from_ctx(ctx).await;
-
-    let channel_id = match get_voice_channel_id(&guild, msg) {
-        Some(c) => c,
-        None => {
-            msg.reply(ctx, NOT_IN_VOICE_CHANNEL_MESSAGE).await?;
-            return Ok(());
-        }
-    };
-
-    if let Some(call_lock) = manager.get(guild_id) {
-        // don't allow the action if the user is not in the same channel.
-        let r = call_lock.lock().await;
-        let c = r.current_channel().expect("there should be a channel here");
-        if c != channel_id {
-            msg.reply(ctx, NOT_IN_SAME_VOICE_CHANNEL_MESSAGE).await?;
-            return Ok(());
-        }
-
-        r.queue().skip()?;
-    } else {
-        msg.reply(ctx, "Not in a voice channel right now.").await?;
-    }
-
-    Ok(())
 }

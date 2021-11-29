@@ -26,6 +26,7 @@ use songbird::{
 use std::{
     collections::HashMap,
     fmt::Display,
+    str::FromStr,
     sync::{
         atomic::{AtomicUsize, Ordering},
         Arc,
@@ -114,6 +115,25 @@ impl TypeMapKey for CommandsMap {
     type Value = Commands;
 }
 
+pub enum CommandScope {
+    GUILD,
+    GLOBAL,
+}
+
+impl FromStr for CommandScope {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "guild" => Ok(Self::GUILD),
+            "global" => Ok(Self::GLOBAL),
+            _ => Err(anyhow!(
+                "Invalid value of command scope, can only be one of either 'guild' or 'global'"
+            )),
+        }
+    }
+}
+
 /// Static registration of all new commands. Yes this is rather inconvenient,
 /// but it'll work for now.
 pub fn register_commands() -> Commands {
@@ -143,9 +163,12 @@ pub trait TugboatCommand {
     fn get_name(&self) -> String;
 }
 
-pub struct CommandHandler;
+pub struct ApplicationCommandHandler {
+    pub prefix: String,
+    pub scope: CommandScope,
+}
 
-impl CommandHandler {
+impl ApplicationCommandHandler {
     async fn set_commands_global(&self, ctx: &Context) {
         use serenity::model::interactions::application_command::ApplicationCommand;
 
@@ -160,8 +183,8 @@ impl CommandHandler {
             .collect::<Vec<_>>();
 
         if let Err(err) = ApplicationCommand::create_global_application_command(&ctx.http, |c| {
-            c.name("tugboat")
-                .description("Tugboat commands")
+            c.name(&self.prefix)
+                .description("Commands")
                 .set_options(options)
         })
         .await
@@ -186,8 +209,8 @@ impl CommandHandler {
         if let Err(e) = guild_id
             .set_application_commands(&ctx.http, |c| {
                 c.create_application_command(|a| {
-                    a.name("tugboat") // TODO: replace this with something configurable
-                        .description("Tugboat commands")
+                    a.name(&self.prefix) // TODO: replace this with something configurable
+                        .description("Commands")
                         .set_options(options)
                 })
             })
@@ -221,7 +244,7 @@ impl CommandHandler {
 }
 
 #[async_trait]
-impl EventHandler for CommandHandler {
+impl EventHandler for ApplicationCommandHandler {
     async fn interaction_create(&self, ctx: Context, interaction: Interaction) {
         if let Interaction::ApplicationCommand(command) = interaction {
             tracing::info!(data=?command.data, "got command interaction!");
@@ -306,26 +329,35 @@ impl EventHandler for CommandHandler {
     }
 
     async fn ready(&self, ctx: Context, ready: Ready) {
-        tracing::info!("ready callback has fired");
-        for x in &ready.guilds {
-            match x {
-                GuildStatus::OnlinePartialGuild(g) => {
-                    tracing::info!("Registering command for partial guild {:?}", g);
-                    self.set_commands_guild(g.id, &ctx).await
-                }
-                GuildStatus::OnlineGuild(g) => {
-                    tracing::info!("Registering command for guild {:?}", g);
-                    self.set_commands_guild(g.id, &ctx).await
-                }
-                GuildStatus::Offline(g) => {
-                    tracing::info!("Guild unavailable: {:?}", g);
-                    self.set_commands_guild(g.id, &ctx).await
-                }
-                _ => {
-                    tracing::info!("Uknown message");
-                    continue;
+        match self.scope {
+            CommandScope::GUILD => {
+                for x in &ready.guilds {
+                    match x {
+                        GuildStatus::OnlinePartialGuild(g) => {
+                            tracing::info!("Registering command for partial guild {:?}", g);
+                            self.set_commands_guild(g.id, &ctx).await;
+                        }
+                        GuildStatus::OnlineGuild(g) => {
+                            tracing::info!("Registering command for guild {:?}", g);
+                            self.set_commands_guild(g.id, &ctx).await;
+                        }
+                        GuildStatus::Offline(g) => {
+                            tracing::info!("Guild unavailable: {:?}", g);
+                            self.set_commands_guild(g.id, &ctx).await;
+                        }
+                        _ => {
+                            tracing::warn!(guild=?x, "Unknown guild status, continuing!");
+                            continue;
+                        }
+                    }
                 }
             }
+            CommandScope::GLOBAL => {
+                tracing::info!("Registering global commands");
+                self.set_commands_global(&ctx).await;
+            }
         }
+
+        tracing::info!("Bot is ready!");
     }
 }

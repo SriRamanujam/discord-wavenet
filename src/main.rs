@@ -1,7 +1,9 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, convert::TryFrom, str::FromStr};
 
+use anyhow::anyhow;
 use anyhow::Context as anyhowContext;
 
+use commands::CommandScope;
 use google_texttospeech1::Texttospeech;
 use serenity::{
     async_trait,
@@ -15,7 +17,7 @@ use tracing_subscriber::EnvFilter;
 
 mod commands;
 
-use commands::{join::*, leave::*, say::*, skip::*, CommandHandler, IdleDurations};
+use commands::{join::*, leave::*, say::*, skip::*, ApplicationCommandHandler, IdleDurations};
 
 use crate::commands::CommandsMap;
 
@@ -78,6 +80,12 @@ async fn main() -> anyhow::Result<()> {
         .context("Could not find env var GOOGLE_API_CREDENTIALS")?;
     let prefix = std::env::var("PREFIX").unwrap_or_else(|_| "::".to_owned());
 
+    let app_command_prefix = std::env::var("APPLICATION_COMMAND_PREFIX")
+        .context("Must provide an application command prefix for slash commands.")?;
+    let app_command_scope = CommandScope::from_str(
+        &std::env::var("APPLICATION_COMMAND_SCOPE").unwrap_or_else(|_| "global".into()),
+    )?;
+
     let secret = yup_oauth2::read_service_account_key(&api_path)
         .await
         .context("Could not read application secret from file!")?;
@@ -100,7 +108,10 @@ async fn main() -> anyhow::Result<()> {
 
     let mut client = Client::builder(&discord_token)
         .event_handler(ReadyNotifier)
-        .event_handler(CommandHandler)
+        .event_handler(ApplicationCommandHandler {
+            prefix: app_command_prefix,
+            scope: app_command_scope,
+        })
         .framework(framework)
         .application_id(application_id)
         .register_songbird()

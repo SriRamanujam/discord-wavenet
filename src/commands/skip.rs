@@ -1,4 +1,3 @@
-
 use serenity::{
     async_trait,
     builder::CreateApplicationCommandOption,
@@ -12,9 +11,7 @@ use serenity::{
 };
 use songbird::id::ChannelId;
 
-use crate::commands::{
-    get_songbird_from_ctx, NOT_IN_SAME_VOICE_CHANNEL_MESSAGE,
-};
+use crate::commands::{get_songbird_from_ctx, NOT_IN_SAME_VOICE_CHANNEL_MESSAGE};
 
 pub struct SkipCommand;
 

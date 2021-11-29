@@ -18,19 +18,15 @@ use serenity::{
     async_trait,
     builder::CreateApplicationCommandOption,
     client::Context,
-    model::{
-        interactions::application_command::{
-            ApplicationCommandInteractionDataOption, ApplicationCommandOptionType,
-        },
+    model::interactions::application_command::{
+        ApplicationCommandInteractionDataOption, ApplicationCommandOptionType,
     },
     prelude::TypeMapKey,
 };
 use songbird::{create_player, id::ChannelId, Event, EventContext, TrackEvent};
 use songbird::{events::EventHandler as VoiceEventHandler, id::GuildId};
 
-use crate::commands::{
-    get_songbird_from_ctx, IdleDurations, NOT_IN_SAME_VOICE_CHANNEL_MESSAGE,
-};
+use crate::commands::{get_songbird_from_ctx, IdleDurations, NOT_IN_SAME_VOICE_CHANNEL_MESSAGE};
 
 use super::{CommandsMap, TugboatCommand};
 

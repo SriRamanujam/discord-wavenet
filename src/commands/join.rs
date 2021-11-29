@@ -12,15 +12,10 @@ use serenity::{
         },
     },
 };
-use songbird::{
-    id::ChannelId,
-    Event,
-};
+use songbird::{id::ChannelId, Event};
 
 use super::TugboatCommand;
-use crate::commands::{
-    get_songbird_from_ctx, IdleDurationTracker, IdleDurations,
-};
+use crate::commands::{get_songbird_from_ctx, IdleDurationTracker, IdleDurations};
 
 pub struct JoinCommand;
 

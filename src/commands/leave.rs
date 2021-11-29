@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-
 use serenity::{
     async_trait,
     builder::CreateApplicationCommandOption,
@@ -18,9 +17,7 @@ use songbird::{
     Songbird,
 };
 
-use crate::commands::{
-    get_songbird_from_ctx, NOT_IN_SAME_VOICE_CHANNEL_MESSAGE,
-};
+use crate::commands::{get_songbird_from_ctx, NOT_IN_SAME_VOICE_CHANNEL_MESSAGE};
 
 pub(super) async fn do_leave(manager: Arc<Songbird>, guild_id: GuildId) -> JoinResult<()> {
     manager.remove(guild_id).await

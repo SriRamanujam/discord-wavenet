@@ -7,7 +7,7 @@ use google_texttospeech1::Texttospeech;
 use serenity::{
     async_trait,
     client::{Context, EventHandler},
-    framework::{standard::macros::group, StandardFramework},
+    framework::StandardFramework,
     model::prelude::Ready,
     Client,
 };
@@ -16,7 +16,7 @@ use tracing_subscriber::EnvFilter;
 
 mod commands;
 
-use commands::{join::*, leave::*, say::*, skip::*, ApplicationCommandHandler, IdleDurations};
+use commands::{say::*, ApplicationCommandHandler, IdleDurations};
 
 use crate::commands::CommandsMap;
 
@@ -58,10 +58,6 @@ impl EventHandler for ReadyNotifier {
     }
 }
 
-#[group]
-#[commands(say, join, leave, skip)]
-struct General;
-
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let subscriber = tracing_subscriber::FmtSubscriber::builder()
@@ -77,7 +73,6 @@ async fn main() -> anyhow::Result<()> {
         .context("Invalid application id")?;
     let api_path = std::env::var("GOOGLE_API_CREDENTIALS")
         .context("Could not find env var GOOGLE_API_CREDENTIALS")?;
-    let prefix = std::env::var("PREFIX").unwrap_or_else(|_| "::".to_owned());
 
     let app_command_prefix = std::env::var("APPLICATION_COMMAND_PREFIX")
         .context("Must provide an application command prefix for slash commands.")?;
@@ -101,9 +96,7 @@ async fn main() -> anyhow::Result<()> {
 
     let voices = get_voices(&hub).await?;
 
-    let framework = StandardFramework::new()
-        .configure(|c| c.prefix(&prefix))
-        .group(&GENERAL_GROUP);
+    let framework = StandardFramework::new();
 
     let mut client = Client::builder(&discord_token)
         .event_handler(ReadyNotifier)

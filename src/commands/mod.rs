@@ -5,7 +5,6 @@ use serenity::{
     client::{Context, EventHandler},
     http::Http,
     model::{
-        channel::Message,
         guild::{Guild, GuildStatus},
         id::GuildId as SerenityGuildId,
         interactions::{
@@ -90,14 +89,6 @@ async fn get_songbird_from_ctx(ctx: &Context) -> Arc<Songbird> {
     songbird::get(ctx)
         .await
         .expect("Songbird context should be present")
-}
-
-fn get_voice_channel_id(guild: &Guild, msg: &Message) -> Option<ChannelId> {
-    guild
-        .voice_states
-        .get(&msg.author.id)
-        .and_then(|vs| vs.channel_id)
-        .map(ChannelId::from)
 }
 
 fn get_voice_channel_by_user(guild: &Guild, user: &User) -> Option<ChannelId> {
@@ -278,7 +269,7 @@ impl EventHandler for ApplicationCommandHandler {
                         .send_interaction_response(
                             &ctx.http,
                             &command,
-                            NOT_IN_SAME_VOICE_CHANNEL_MESSAGE,
+                            NOT_IN_VOICE_CHANNEL_MESSAGE,
                         )
                         .await
                 }

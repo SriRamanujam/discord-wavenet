@@ -146,7 +146,9 @@ pub trait TugboatCommand {
 pub struct CommandHandler;
 
 impl CommandHandler {
-    async fn set_application_commands_on_guild(&self, guild_id: SerenityGuildId, ctx: &Context) {
+    async fn set_commands_global(&self, ctx: &Context) {
+        use serenity::model::interactions::application_command::ApplicationCommand;
+
         let options = ctx
             .data
             .read()
@@ -157,19 +159,29 @@ impl CommandHandler {
             .map(|comm| comm.create_command())
             .collect::<Vec<_>>();
 
-        /*
-        // TODO:
-        // this does not scale, but I don't know of a better way. Just delete all the commands before
-        // adding the new ones.
-        // NB: don't actually commit this logic, or if you do, leave it commented-out or something.
+        if let Err(err) = ApplicationCommand::create_global_application_command(&ctx.http, |c| {
+            c.name("tugboat")
+                .description("Tugboat commands")
+                .set_options(options)
+        })
+        .await
         {
-            let commands = guild_id.get_application_commands(&ctx.http).await.unwrap();
-            for c in &commands {
-                let x = guild_id.delete_application_command(&ctx.http, c.id).await;
-                tracing::info!(?guild_id, ?c, "Deleted application command");
-            }
+            tracing::error!(?err, "Could not set global application commands")
+        } else {
+            tracing::info!("Registered global application commands");
         }
-        */
+    }
+
+    async fn set_commands_guild(&self, guild_id: SerenityGuildId, ctx: &Context) {
+        let options = ctx
+            .data
+            .read()
+            .await
+            .get::<CommandsMap>()
+            .expect("Should have been commands here")
+            .values()
+            .map(|comm| comm.create_command())
+            .collect::<Vec<_>>();
 
         if let Err(e) = guild_id
             .set_application_commands(&ctx.http, |c| {
@@ -299,15 +311,15 @@ impl EventHandler for CommandHandler {
             match x {
                 GuildStatus::OnlinePartialGuild(g) => {
                     tracing::info!("Registering command for partial guild {:?}", g);
-                    self.set_application_commands_on_guild(g.id, &ctx).await
+                    self.set_commands_guild(g.id, &ctx).await
                 }
                 GuildStatus::OnlineGuild(g) => {
                     tracing::info!("Registering command for guild {:?}", g);
-                    self.set_application_commands_on_guild(g.id, &ctx).await
+                    self.set_commands_guild(g.id, &ctx).await
                 }
                 GuildStatus::Offline(g) => {
                     tracing::info!("Guild unavailable: {:?}", g);
-                    self.set_application_commands_on_guild(g.id, &ctx).await
+                    self.set_commands_guild(g.id, &ctx).await
                 }
                 _ => {
                     tracing::info!("Uknown message");

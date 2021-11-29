@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use anyhow::anyhow;
 use serenity::{
     async_trait,
@@ -14,11 +12,7 @@ use serenity::{
         },
     },
 };
-use songbird::{
-    error::JoinResult,
-    id::{ChannelId, GuildId},
-    Songbird,
-};
+use songbird::id::{ChannelId, GuildId};
 
 use crate::commands::{
     get_songbird_from_ctx, get_voice_channel_id, NOT_IN_SAME_VOICE_CHANNEL_MESSAGE,

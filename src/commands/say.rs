@@ -13,7 +13,7 @@ use google_texttospeech1::{
     Texttospeech,
 };
 use serde_json::Value;
-use serenity::model::{guild::Guild, id::GuildId as SerenityGuildId};
+use serenity::model::guild::Guild;
 use serenity::{
     async_trait,
     builder::CreateApplicationCommandOption,
@@ -24,7 +24,6 @@ use serenity::{
         interactions::application_command::{
             ApplicationCommandInteractionDataOption, ApplicationCommandOptionType,
         },
-        prelude::User,
     },
     prelude::TypeMapKey,
 };
@@ -33,10 +32,9 @@ use songbird::{events::EventHandler as VoiceEventHandler, id::GuildId};
 
 use crate::commands::{
     get_songbird_from_ctx, get_voice_channel_id, IdleDurations, NOT_IN_SAME_VOICE_CHANNEL_MESSAGE,
-    NOT_IN_VOICE_CHANNEL_MESSAGE,
 };
 
-use super::{get_voice_channel_by_user, join, CommandsMap, TugboatCommand};
+use super::{CommandsMap, TugboatCommand};
 
 pub struct TtsService;
 impl TypeMapKey for TtsService {
@@ -274,7 +272,7 @@ impl TugboatCommand for SayCommand {
 
         let message = match message {
             Some(m) => {
-                if m.len() < 1 {
+                if m.is_empty() {
                     return Ok("Must supply a string with at least one character".into());
                 } else {
                     m
@@ -327,7 +325,7 @@ impl TugboatCommand for SayCommand {
 
             match res.audio_content {
                 Some(c) => base64::decode(c).context("Could not decode base64 audio content!")?,
-                None => return Err(anyhow!("No audio content returned from API!").into()),
+                None => return Err(anyhow!("No audio content returned from API!")),
             }
         };
 

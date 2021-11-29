@@ -1,6 +1,5 @@
-use std::{collections::HashMap, convert::TryFrom, str::FromStr};
+use std::{collections::HashMap, str::FromStr};
 
-use anyhow::anyhow;
 use anyhow::Context as anyhowContext;
 
 use commands::CommandScope;

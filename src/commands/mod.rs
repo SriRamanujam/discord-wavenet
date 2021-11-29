@@ -25,7 +25,6 @@ use songbird::{
 };
 use std::{
     collections::HashMap,
-    fmt::Display,
     str::FromStr,
     sync::{
         atomic::{AtomicUsize, Ordering},
@@ -116,8 +115,8 @@ impl TypeMapKey for CommandsMap {
 }
 
 pub enum CommandScope {
-    GUILD,
-    GLOBAL,
+    Guild,
+    Global,
 }
 
 impl FromStr for CommandScope {
@@ -125,8 +124,8 @@ impl FromStr for CommandScope {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "guild" => Ok(Self::GUILD),
-            "global" => Ok(Self::GLOBAL),
+            "guild" => Ok(Self::Guild),
+            "global" => Ok(Self::Global),
             _ => Err(anyhow!(
                 "Invalid value of command scope, can only be one of either 'guild' or 'global'"
             )),
@@ -290,7 +289,7 @@ impl EventHandler for ApplicationCommandHandler {
                 let commands = data
                     .get::<CommandsMap>()
                     .expect("Should have been commands here");
-                commands.get(&incoming.name).map(|v| v.clone())
+                commands.get(&incoming.name).cloned()
             };
 
             let response = {
@@ -330,7 +329,7 @@ impl EventHandler for ApplicationCommandHandler {
 
     async fn ready(&self, ctx: Context, ready: Ready) {
         match self.scope {
-            CommandScope::GUILD => {
+            CommandScope::Guild => {
                 for x in &ready.guilds {
                     match x {
                         GuildStatus::OnlinePartialGuild(g) => {
@@ -352,7 +351,7 @@ impl EventHandler for ApplicationCommandHandler {
                     }
                 }
             }
-            CommandScope::GLOBAL => {
+            CommandScope::Global => {
                 tracing::info!("Registering global commands");
                 self.set_commands_global(&ctx).await;
             }

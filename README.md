@@ -11,7 +11,7 @@ Millions of dollars of R&D, who knows how many man-hours, the sweat and tears of
 
 You will need:
 
-* Rust 1.48 or newer
+* Rust 1.51 or newer
 * Opus development libraries installed (`libopus-dev` on Debian-alikes, `opus-devel` on RHEL-alikes)
 * ffmpeg
 
@@ -29,13 +29,15 @@ Once you have those two things, it's very easy to run the bot. The tokens are pa
 ```sh
 export DISCORD_TOKEN=<Discord token goes here>
 export GOOGLE_API_CREDENTIALS=<Path to file containing Google API JSON goes here>
+export DISCORD_APPLICATION_ID=<Discord application ID>
+export APPLICATION_COMMAND_PREFIX=<your bot's name>
 cargo run --release
 ```
 
 ### Via the Docker container
 
 ```sh
-docker run -e "DISCORD_TOKEN=<Discord token goes here>" -e "GOOGLE_API_CREDENTIALS=<Path to file containing Google API JSON goes here>" --rm -it ghcr.io/sriramanujam/discord-wavenet:latest
+docker run -e "DISCORD_TOKEN=<Discord token goes here>" -e "GOOGLE_API_CREDENTIALS=<Path to file containing Google API JSON goes here>" -e "DISCORD_APPLICATION_ID=<Discord application id>" -e "APPLICATION_COMMAND_PREFIX=<your bot's name>" --rm -it ghcr.io/sriramanujam/discord-wavenet:latest
 ```
 
 ## Doesn't using Wavenet cost money?

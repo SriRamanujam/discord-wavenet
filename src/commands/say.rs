@@ -162,7 +162,7 @@ impl TugboatCommand for SayCommand {
                 .expect("There should have been voices here.")
                 .get(&language_code)
                 .context("No voices found for this language code!")?
-                .into_iter()
+                .iter()
                 .filter_map(|v| match gender {
                     // if the gender is present, only filter out voices that
                     // have that same gender. otherwise, return all voices.

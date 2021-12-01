@@ -9,7 +9,7 @@ use std::{
 
 use anyhow::{anyhow, Context as anyhowContext};
 use google_texttospeech1::{
-    api::{AudioConfig, SynthesisInput, SynthesizeSpeechRequest, VoiceSelectionParams},
+    api::{AudioConfig, SynthesisInput, SynthesizeSpeechRequest, Voice, VoiceSelectionParams},
     Texttospeech,
 };
 use serde_json::Value;
@@ -36,8 +36,9 @@ impl TypeMapKey for TtsService {
 }
 
 pub struct Voices;
+pub type VoiceValues = HashMap<String, Vec<Voice>>;
 impl TypeMapKey for Voices {
-    type Value = HashMap<String, Vec<String>>;
+    type Value = VoiceValues;
 }
 
 struct TrackCleanup {
@@ -98,9 +99,10 @@ impl TugboatCommand for SayCommand {
             }
         }
 
-        let (message, language) = {
+        let (message, language, gender) = {
             let mut m = None;
-            let mut c = None;
+            let mut l = None;
+            let mut g = None;
             for option in options {
                 match option.name.as_str() {
                     "message" => {
@@ -114,7 +116,17 @@ impl TugboatCommand for SayCommand {
                             .flatten();
                     }
                     "language" => {
-                        c = option
+                        l = option
+                            .value
+                            .as_ref()
+                            .map(|v| match v {
+                                Value::String(s) => Some(s.to_owned()),
+                                _ => None,
+                            })
+                            .flatten();
+                    }
+                    "gender" => {
+                        g = option
                             .value
                             .as_ref()
                             .map(|v| match v {
@@ -127,7 +139,7 @@ impl TugboatCommand for SayCommand {
                 }
             }
 
-            (m, c)
+            (m, l, g)
         };
 
         let message = match message {
@@ -149,7 +161,37 @@ impl TugboatCommand for SayCommand {
                 .get::<Voices>()
                 .expect("There should have been voices here.")
                 .get(&language_code)
-                .context("No voices found for this language code!")?;
+                .context("No voices found for this language code!")?
+                .iter()
+                .filter_map(|v| match gender {
+                    // if the gender is present, only filter out voices that
+                    // have that same gender. otherwise, return all voices.
+                    Some(ref g) => {
+                        if g == v
+                            .ssml_gender
+                            .as_ref()
+                            .expect("Should have been a gender here")
+                            .as_str()
+                        {
+                            Some(
+                                v.name
+                                    .as_ref()
+                                    .expect("Should have been a name here")
+                                    .clone(),
+                            )
+                        } else {
+                            None
+                        }
+                    }
+                    None => Some(
+                        v.name
+                            .as_ref()
+                            .expect("Should have been a name here")
+                            .clone(),
+                    ),
+                })
+                .collect::<Vec<_>>();
+
             let voice = voices[fastrand::usize(..voices.len())].clone();
 
             let tts_service = data
@@ -254,6 +296,14 @@ impl TugboatCommand for SayCommand {
                 .description("A language to use (default en-US). You can get the list of languages with `/tugboat languages`")
                 .kind(ApplicationCommandOptionType::String)
                 .required(false)
+        })
+        .create_sub_option(|o| {
+            o.name("gender")
+                .description("The gender of the generated speech. By default will pick randomly.")
+                .kind(ApplicationCommandOptionType::String)
+                .required(false)
+                .add_string_choice("Male", "MALE")
+                .add_string_choice("Female", "FEMALE")
         })
         .clone()
     }

@@ -21,7 +21,7 @@ use commands::{say::*, ApplicationCommandHandler, IdleDurations};
 use crate::commands::CommandsMap;
 
 #[tracing::instrument(skip(hub))]
-async fn get_voices(hub: &Texttospeech) -> anyhow::Result<HashMap<String, Vec<String>>> {
+async fn get_voices(hub: &Texttospeech) -> anyhow::Result<VoiceValues> {
     let (_, response) = hub
         .voices()
         .list()
@@ -32,14 +32,18 @@ async fn get_voices(hub: &Texttospeech) -> anyhow::Result<HashMap<String, Vec<St
     let mut x = HashMap::new();
     let mut counter = 0;
 
-    for v in response.voices.into_iter().flatten() {
-        let name = v.name.expect("Should have been a name here");
+    for v in response.voices.iter().flatten() {
+        let name = v.name.as_ref().expect("Should have been a name here");
         if name.contains("Wavenet") {
             let language_codes = v
                 .language_codes
+                .as_ref()
                 .expect("Should have been a language code here");
+
             for code in language_codes {
-                x.entry(code).or_insert_with(Vec::new).push(name.clone());
+                x.entry(code.to_owned())
+                    .or_insert_with(Vec::new)
+                    .push(v.clone());
                 counter += 1;
             }
         }

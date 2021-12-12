@@ -106,34 +106,22 @@ impl TugboatCommand for SayCommand {
             for option in options {
                 match option.name.as_str() {
                     "message" => {
-                        m = option
-                            .value
-                            .as_ref()
-                            .map(|v| match v {
-                                Value::String(s) => Some(s.to_owned()),
-                                _ => None,
-                            })
-                            .flatten();
+                        m = option.value.as_ref().and_then(|v| match v {
+                            Value::String(s) => Some(s.to_owned()),
+                            _ => None,
+                        });
                     }
                     "language" => {
-                        l = option
-                            .value
-                            .as_ref()
-                            .map(|v| match v {
-                                Value::String(s) => Some(s.to_owned()),
-                                _ => None,
-                            })
-                            .flatten();
+                        l = option.value.as_ref().and_then(|v| match v {
+                            Value::String(s) => Some(s.to_owned()),
+                            _ => None,
+                        });
                     }
                     "gender" => {
-                        g = option
-                            .value
-                            .as_ref()
-                            .map(|v| match v {
-                                Value::String(s) => Some(s.to_owned()),
-                                _ => None,
-                            })
-                            .flatten();
+                        g = option.value.as_ref().and_then(|v| match v {
+                            Value::String(s) => Some(s.to_owned()),
+                            _ => None,
+                        });
                     }
                     _ => continue,
                 }

@@ -1577,9 +1577,9 @@ dependencies = [
 
 [[package]]
 name = "songbird"
-version = "0.2.0"
+version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "62492c36b6d3ddb342172f57fee6761388062b2b55ab3895aad0b554e51094e7"
+checksum = "324223cec5772b4374bf82579c884ae3269fb53eb101aca25f8bf41312ab19fc"
 dependencies = [
  "async-trait",
  "async-tungstenite 0.14.0",
@@ -1682,13 +1682,13 @@ dependencies = [
 
 [[package]]
 name = "tempfile"
-version = "3.2.0"
+version = "3.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dac1c663cfc93810f88aed9b8941d48cabf856a1b111c29a40439018d870eb22"
+checksum = "5cdb1ef4eaeeaddc8fbd371e5017057064af0911902ef36b39801f67cc6d79e4"
 dependencies = [
  "cfg-if 1.0.0",
+ "fastrand",
  "libc",
- "rand 0.8.4",
  "redox_syscall",
  "remove_dir_all",
  "winapi",

@@ -12,7 +12,7 @@ serenity = { version = "0.10", features = ["cache", "standard_framework", "voice
 tokio = { version = "1", features = [ "full" ]}
 anyhow = "1.0.50"
 tracing-subscriber = { version = "0.3.6", features = ["env-filter"] }
-tracing = "0.1.25"
+tracing = "0.1.33"
 tempfile = "3.3.0"
 fastrand = "1.6.0"
 tracing-futures = "0.2.5"

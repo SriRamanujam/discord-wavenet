@@ -14,7 +14,7 @@ anyhow = "1.0.57"
 tracing-subscriber = { version = "0.3.6", features = ["env-filter"] }
 tracing = "0.1.34"
 tempfile = "3.3.0"
-fastrand = "1.6.0"
+fastrand = "1.7.0"
 tracing-futures = "0.2.5"
 
 # Dependencies for the Google text to speech api bindings I'm using

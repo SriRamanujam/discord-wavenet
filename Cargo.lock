@@ -198,7 +198,7 @@ dependencies = [
  "num-integer",
  "num-traits 0.2.14",
  "serde",
- "time",
+ "time 0.1.43",
  "winapi",
 ]
 
@@ -312,7 +312,7 @@ dependencies = [
  "tracing",
  "tracing-futures",
  "tracing-subscriber",
- "yup-oauth2",
+ "yup-oauth2 5.1.0",
 ]
 
 [[package]]
@@ -537,9 +537,9 @@ dependencies = [
 
 [[package]]
 name = "google-texttospeech1"
-version = "2.0.8+20210326"
+version = "3.0.0+20220228"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1043151351fdb8a5675037df5a34cbfbb263be7d6fe9df2b1fb9b69a7cfd4677"
+checksum = "e5c96b3db467a740d151340c64af1f37adcc9b03a97e024211541e22541c47e4"
 dependencies = [
  "hyper",
  "hyper-rustls 0.22.1",
@@ -549,7 +549,7 @@ dependencies = [
  "serde_derive",
  "serde_json",
  "url 1.7.2",
- "yup-oauth2",
+ "yup-oauth2 6.6.0",
 ]
 
 [[package]]
@@ -655,7 +655,7 @@ dependencies = [
  "hyper",
  "log 0.4.14",
  "rustls 0.19.1",
- "rustls-native-certs",
+ "rustls-native-certs 0.5.0",
  "tokio",
  "tokio-rustls 0.22.0",
  "webpki 0.21.4",
@@ -669,7 +669,9 @@ checksum = "d87c48c02e0dc5e3b849a2041db3029fd066650f8f717c07bf8ed78ccb895cac"
 dependencies = [
  "http",
  "hyper",
- "rustls 0.20.2",
+ "log 0.4.14",
+ "rustls 0.20.4",
+ "rustls-native-certs 0.6.2",
  "tokio",
  "tokio-rustls 0.23.1",
 ]
@@ -958,6 +960,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "05499f3756671c15885fee9034446956fff3f243d6077b91e5767df161f766b3"
 dependencies = [
  "hermit-abi",
+ "libc",
+]
+
+[[package]]
+name = "num_threads"
+version = "0.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "aba1801fb138d8e85e11d0fc70baf4fe1cdfffda7c6cd34a854905df588e5ed0"
+dependencies = [
  "libc",
 ]
 
@@ -1264,8 +1275,8 @@ dependencies = [
  "mime_guess",
  "percent-encoding 2.1.0",
  "pin-project-lite",
- "rustls 0.20.2",
- "rustls-pemfile",
+ "rustls 0.20.4",
+ "rustls-pemfile 0.2.1",
  "serde",
  "serde_json",
  "serde_urlencoded",
@@ -1310,9 +1321,9 @@ dependencies = [
 
 [[package]]
 name = "rustls"
-version = "0.20.2"
+version = "0.20.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d37e5e2290f3e040b594b1a9e04377c2c671f1a1cfd9bfdef82106ac1c113f84"
+checksum = "4fbfeb8d0ddb84706bc597a5574ab8912817c52a397f819e5b614e2265206921"
 dependencies = [
  "log 0.4.14",
  "ring",
@@ -1333,10 +1344,40 @@ dependencies = [
 ]
 
 [[package]]
+name = "rustls-native-certs"
+version = "0.6.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0167bac7a9f490495f3c33013e7722b53cb087ecbe082fb0c6387c96f634ea50"
+dependencies = [
+ "openssl-probe",
+ "rustls-pemfile 1.0.0",
+ "schannel",
+ "security-framework",
+]
+
+[[package]]
 name = "rustls-pemfile"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5eebeaeb360c87bfb72e84abdb3447159c0eaececf1bef2aecd65a8be949d1c9"
+dependencies = [
+ "base64 0.13.0",
+]
+
+[[package]]
+name = "rustls-pemfile"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1ee86d63972a7c661d1536fefe8c3c8407321c3df668891286de28abcd087360"
+dependencies = [
+ "base64 0.13.0",
+]
+
+[[package]]
+name = "rustls-pemfile"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e7522c9de787ff061458fe9a829dc790a3f5b22dc571694fc5883f448b94d9a9"
 dependencies = [
  "base64 0.13.0",
 ]
@@ -1740,6 +1781,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "time"
+version = "0.3.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c2702e08a7a860f005826c6815dcac101b19b5eb330c27fe4a5928fec1d20ddd"
+dependencies = [
+ "libc",
+ "num_threads",
+ "serde",
+]
+
+[[package]]
 name = "tinyvec"
 version = "1.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1801,7 +1853,7 @@ version = "0.23.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4baa378e417d780beff82bf54ceb0d195193ea6a00c14e22359e7f39456b5689"
 dependencies = [
- "rustls 0.20.2",
+ "rustls 0.20.4",
  "tokio",
  "webpki 0.22.0",
 ]
@@ -2260,6 +2312,32 @@ dependencies = [
  "seahash",
  "serde",
  "serde_json",
+ "tokio",
+ "url 2.2.2",
+]
+
+[[package]]
+name = "yup-oauth2"
+version = "6.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "73b8e9dfff61fb272cffb4b4219893ab69e9b5a766e0d1958eefb14fb25dd59c"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "base64 0.13.0",
+ "futures",
+ "http",
+ "hyper",
+ "hyper-rustls 0.23.0",
+ "itertools",
+ "log 0.4.14",
+ "percent-encoding 2.1.0",
+ "rustls 0.20.4",
+ "rustls-pemfile 0.3.0",
+ "seahash",
+ "serde",
+ "serde_json",
+ "time 0.3.9",
  "tokio",
  "url 2.2.2",
 ]

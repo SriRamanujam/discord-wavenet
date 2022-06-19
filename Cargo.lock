@@ -198,7 +198,6 @@ dependencies = [
  "num-integer",
  "num-traits 0.2.14",
  "serde",
- "time 0.1.43",
  "winapi",
 ]
 
@@ -266,15 +265,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ct-logs"
-version = "0.8.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c1a816186fa68d9e426e3cb4ae4dff1fcd8e4a2c34b781bf7a822574a0d0aac8"
-dependencies = [
- "sct 0.6.1",
-]
-
-[[package]]
 name = "dashmap"
 version = "4.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -302,7 +292,6 @@ dependencies = [
  "fastrand",
  "google-texttospeech1",
  "hyper",
- "hyper-rustls 0.22.1",
  "serde",
  "serde_json",
  "serenity",
@@ -312,7 +301,6 @@ dependencies = [
  "tracing",
  "tracing-futures",
  "tracing-subscriber",
- "yup-oauth2 5.1.0",
 ]
 
 [[package]]
@@ -537,19 +525,19 @@ dependencies = [
 
 [[package]]
 name = "google-texttospeech1"
-version = "3.0.0+20220228"
+version = "3.1.0+20220228"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e5c96b3db467a740d151340c64af1f37adcc9b03a97e024211541e22541c47e4"
+checksum = "ef58fd40ec6c1796f58cf30bf7e92e6ed5b2fcd29879db2e1692972834826a42"
 dependencies = [
  "hyper",
- "hyper-rustls 0.22.1",
+ "hyper-rustls",
  "itertools",
  "mime 0.2.6",
  "serde",
  "serde_derive",
  "serde_json",
  "url 1.7.2",
- "yup-oauth2 6.6.0",
+ "yup-oauth2",
 ]
 
 [[package]]
@@ -646,23 +634,6 @@ dependencies = [
 
 [[package]]
 name = "hyper-rustls"
-version = "0.22.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5f9f7a97316d44c0af9b0301e65010573a853a9fc97046d7331d7f6bc0fd5a64"
-dependencies = [
- "ct-logs",
- "futures-util",
- "hyper",
- "log 0.4.14",
- "rustls 0.19.1",
- "rustls-native-certs 0.5.0",
- "tokio",
- "tokio-rustls 0.22.0",
- "webpki 0.21.4",
-]
-
-[[package]]
-name = "hyper-rustls"
 version = "0.23.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d87c48c02e0dc5e3b849a2041db3029fd066650f8f717c07bf8ed78ccb895cac"
@@ -671,7 +642,7 @@ dependencies = [
  "hyper",
  "log 0.4.14",
  "rustls 0.20.4",
- "rustls-native-certs 0.6.2",
+ "rustls-native-certs",
  "tokio",
  "tokio-rustls 0.23.1",
 ]
@@ -1266,7 +1237,7 @@ dependencies = [
  "http",
  "http-body",
  "hyper",
- "hyper-rustls 0.23.0",
+ "hyper-rustls",
  "ipnet",
  "js-sys",
  "lazy_static",
@@ -1329,18 +1300,6 @@ dependencies = [
  "ring",
  "sct 0.7.0",
  "webpki 0.22.0",
-]
-
-[[package]]
-name = "rustls-native-certs"
-version = "0.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5a07b7c1885bd8ed3831c289b7870b13ef46fe0e856d288c30d9cc17d75a2092"
-dependencies = [
- "openssl-probe",
- "rustls 0.19.1",
- "schannel",
- "security-framework",
 ]
 
 [[package]]
@@ -1768,16 +1727,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5516c27b78311c50bf42c071425c560ac799b11c30b31f87e3081965fe5e0180"
 dependencies = [
  "once_cell",
-]
-
-[[package]]
-name = "time"
-version = "0.1.43"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ca8a50ef2360fbd1eeb0ecd46795a87a19024eb4b53c5dc916ca1fd95fe62438"
-dependencies = [
- "libc",
- "winapi",
 ]
 
 [[package]]
@@ -2296,28 +2245,6 @@ dependencies = [
 
 [[package]]
 name = "yup-oauth2"
-version = "5.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2573621fa28865489bdf556cdb8703604f4e8498612e3041a212ac20e59c4aeb"
-dependencies = [
- "base64 0.13.0",
- "chrono",
- "futures",
- "http",
- "hyper",
- "hyper-rustls 0.22.1",
- "log 0.4.14",
- "percent-encoding 2.1.0",
- "rustls 0.19.1",
- "seahash",
- "serde",
- "serde_json",
- "tokio",
- "url 2.2.2",
-]
-
-[[package]]
-name = "yup-oauth2"
 version = "6.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "73b8e9dfff61fb272cffb4b4219893ab69e9b5a766e0d1958eefb14fb25dd59c"
@@ -2328,7 +2255,7 @@ dependencies = [
  "futures",
  "http",
  "hyper",
- "hyper-rustls 0.23.0",
+ "hyper-rustls",
  "itertools",
  "log 0.4.14",
  "percent-encoding 2.1.0",
@@ -2337,7 +2264,7 @@ dependencies = [
  "seahash",
  "serde",
  "serde_json",
- "time 0.3.9",
+ "time",
  "tokio",
  "url 2.2.2",
 ]

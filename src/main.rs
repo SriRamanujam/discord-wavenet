@@ -3,6 +3,8 @@ use std::{collections::HashMap, str::FromStr};
 use anyhow::Context as anyhowContext;
 
 use commands::CommandScope;
+use google_texttospeech1::hyper_rustls;
+use google_texttospeech1::oauth2;
 use google_texttospeech1::Texttospeech;
 use serenity::{
     async_trait,
@@ -84,17 +86,23 @@ async fn main() -> anyhow::Result<()> {
         &std::env::var("APPLICATION_COMMAND_SCOPE").unwrap_or_else(|_| "global".into()),
     )?;
 
-    let secret = yup_oauth2::read_service_account_key(&api_path)
+    let secret = oauth2::read_service_account_key(&api_path)
         .await
         .context("Could not read application secret from file!")?;
 
-    let auth = yup_oauth2::ServiceAccountAuthenticator::builder(secret)
+    let auth = oauth2::ServiceAccountAuthenticator::builder(secret)
         .build()
         .await
         .context("Could not create authenticator!")?;
 
     let hub = google_texttospeech1::Texttospeech::new(
-        hyper::Client::builder().build(hyper_rustls::HttpsConnector::with_native_roots()),
+        hyper::Client::builder().build(
+            hyper_rustls::HttpsConnectorBuilder::new()
+                .with_native_roots()
+                .https_only()
+                .enable_http2()
+                .build(),
+        ),
         auth,
     );
 

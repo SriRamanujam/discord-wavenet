@@ -3,10 +3,8 @@ use serenity::{
     builder::CreateApplicationCommandOption,
     client::Context,
     model::{
-        guild::Guild,
-        interactions::application_command::{
-            ApplicationCommandInteractionDataOption, ApplicationCommandOptionType,
-        },
+        application::command::CommandOptionType, guild::Guild,
+        prelude::interaction::application_command::CommandDataOption,
     },
 };
 use songbird::id::ChannelId;
@@ -20,7 +18,7 @@ impl super::TugboatCommand for SkipCommand {
     async fn execute(
         &self,
         ctx: &Context,
-        _options: &[ApplicationCommandInteractionDataOption],
+        _options: &[CommandDataOption],
         guild: Guild,
         channel_id: ChannelId,
     ) -> anyhow::Result<String> {
@@ -46,7 +44,7 @@ impl super::TugboatCommand for SkipCommand {
         CreateApplicationCommandOption::default()
             .name("skip")
             .description("Skip the currently-playing track")
-            .kind(ApplicationCommandOptionType::SubCommand)
+            .kind(CommandOptionType::SubCommand)
             .clone()
     }
 

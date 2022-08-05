@@ -6,6 +6,7 @@ use commands::CommandScope;
 use google_texttospeech1::hyper_rustls;
 use google_texttospeech1::oauth2;
 use google_texttospeech1::Texttospeech;
+use serenity::prelude::GatewayIntents;
 use serenity::{
     async_trait,
     client::{Context, EventHandler},
@@ -110,7 +111,9 @@ async fn main() -> anyhow::Result<()> {
 
     let framework = StandardFramework::new();
 
-    let mut client = Client::builder(&discord_token)
+    let intents = GatewayIntents::non_privileged();
+
+    let mut client = Client::builder(&discord_token, intents)
         .event_handler(ReadyNotifier)
         .event_handler(ApplicationCommandHandler {
             prefix: app_command_prefix,

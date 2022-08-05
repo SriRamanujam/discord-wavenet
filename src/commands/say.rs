@@ -13,13 +13,13 @@ use google_texttospeech1::{
     Texttospeech,
 };
 use serde_json::Value;
-use serenity::model::guild::Guild;
 use serenity::{
     async_trait,
     builder::CreateApplicationCommandOption,
     client::Context,
-    model::interactions::application_command::{
-        ApplicationCommandInteractionDataOption, ApplicationCommandOptionType,
+    model::{
+        application::command::CommandOptionType, guild::Guild,
+        prelude::interaction::application_command::CommandDataOption,
     },
     prelude::TypeMapKey,
 };
@@ -67,7 +67,7 @@ impl TugboatCommand for SayCommand {
     async fn execute(
         &self,
         ctx: &Context,
-        options: &[ApplicationCommandInteractionDataOption],
+        options: &[CommandDataOption],
         guild: Guild,
         channel_id: ChannelId,
     ) -> anyhow::Result<String> {
@@ -272,23 +272,23 @@ impl TugboatCommand for SayCommand {
         CreateApplicationCommandOption::default()
         .name("say")
         .description("Say something into the voice channel you are currently in")
-        .kind(ApplicationCommandOptionType::SubCommand)
+        .kind(CommandOptionType::SubCommand)
         .create_sub_option(|o| {
             o.name("message")
                 .description("What you want the bot to say")
-                .kind(ApplicationCommandOptionType::String)
+                .kind(CommandOptionType::String)
                 .required(true)
         })
         .create_sub_option(|o| {
             o.name("language")
                 .description("A language to use (default en-US). You can get the list of languages with `/tugboat languages`")
-                .kind(ApplicationCommandOptionType::String)
+                .kind(CommandOptionType::String)
                 .required(false)
         })
         .create_sub_option(|o| {
             o.name("gender")
                 .description("The gender of the generated speech. By default will pick randomly.")
-                .kind(ApplicationCommandOptionType::String)
+                .kind(CommandOptionType::String)
                 .required(false)
                 .add_string_choice("Male", "MALE")
                 .add_string_choice("Female", "FEMALE")

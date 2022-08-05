@@ -3,10 +3,8 @@ use serenity::{
     builder::CreateApplicationCommandOption,
     client::Context,
     model::{
-        guild::Guild,
-        interactions::application_command::{
-            ApplicationCommandInteractionDataOption, ApplicationCommandOptionType,
-        },
+        application::command::CommandOptionType, guild::Guild,
+        prelude::interaction::application_command::CommandDataOption,
     },
 };
 use songbird::id::ChannelId;
@@ -20,7 +18,7 @@ impl super::TugboatCommand for LanguagesCommand {
     async fn execute(
         &self,
         ctx: &Context,
-        _options: &[ApplicationCommandInteractionDataOption],
+        _options: &[CommandDataOption],
         _guild: Guild,
         _channel_id: ChannelId,
     ) -> anyhow::Result<String> {
@@ -43,7 +41,7 @@ impl super::TugboatCommand for LanguagesCommand {
         CreateApplicationCommandOption::default()
             .name("languages")
             .description("Show all the languages currently supported by the bot")
-            .kind(ApplicationCommandOptionType::SubCommand)
+            .kind(CommandOptionType::SubCommand)
             .clone()
     }
 

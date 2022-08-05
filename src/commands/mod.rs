@@ -5,15 +5,16 @@ use serenity::{
     client::{Context, EventHandler},
     http::Http,
     model::{
-        guild::{Guild, GuildStatus},
-        id::GuildId as SerenityGuildId,
-        interactions::{
-            application_command::{
-                ApplicationCommandInteraction, ApplicationCommandInteractionDataOption,
+        application::{
+            command::Command,
+            interaction::{
+                application_command::{ApplicationCommandInteraction, CommandDataOption},
+                Interaction,
             },
-            Interaction, InteractionResponseType,
         },
-        prelude::{Ready, User},
+        guild::Guild,
+        id::GuildId as SerenityGuildId,
+        prelude::{interaction::InteractionResponseType, Ready, User},
     },
     prelude::TypeMapKey,
 };
@@ -145,7 +146,7 @@ pub trait TugboatCommand {
     async fn execute(
         &self,
         ctx: &Context,
-        options: &[ApplicationCommandInteractionDataOption],
+        options: &[CommandDataOption],
         guild: Guild,
         channel_id: ChannelId,
     ) -> anyhow::Result<String>;
@@ -160,8 +161,6 @@ pub struct ApplicationCommandHandler {
 
 impl ApplicationCommandHandler {
     async fn set_commands_global(&self, ctx: &Context) {
-        use serenity::model::interactions::application_command::ApplicationCommand;
-
         let options = ctx
             .data
             .read()
@@ -172,7 +171,7 @@ impl ApplicationCommandHandler {
             .map(|comm| comm.create_command())
             .collect::<Vec<_>>();
 
-        if let Err(err) = ApplicationCommand::create_global_application_command(&ctx.http, |c| {
+        if let Err(err) = Command::create_global_application_command(&ctx.http, |c| {
             c.name(&self.prefix)
                 .description("Commands")
                 .set_options(options)
@@ -244,7 +243,7 @@ impl EventHandler for ApplicationCommandHandler {
 
             // gather up guild and channel info
             let guild = match command.guild_id {
-                Some(g) => match g.to_guild_cached(&ctx.cache).await {
+                Some(g) => match g.to_guild_cached(&ctx.cache) {
                     Some(gu) => gu,
                     None => {
                         tracing::error!(guild_id=?g, "Could not find guild in cache!");
@@ -321,24 +320,10 @@ impl EventHandler for ApplicationCommandHandler {
     async fn ready(&self, ctx: Context, ready: Ready) {
         match self.scope {
             CommandScope::Guild => {
-                for x in &ready.guilds {
-                    match x {
-                        GuildStatus::OnlinePartialGuild(g) => {
-                            tracing::info!("Registering command for partial guild {:?}", g);
-                            self.set_commands_guild(g.id, &ctx).await;
-                        }
-                        GuildStatus::OnlineGuild(g) => {
-                            tracing::info!("Registering command for guild {:?}", g);
-                            self.set_commands_guild(g.id, &ctx).await;
-                        }
-                        GuildStatus::Offline(g) => {
-                            tracing::info!("Guild unavailable: {:?}", g);
-                            self.set_commands_guild(g.id, &ctx).await;
-                        }
-                        _ => {
-                            tracing::warn!(guild=?x, "Unknown guild status, continuing!");
-                            continue;
-                        }
+                for g in &ready.guilds {
+                    if !g.unavailable {
+                        tracing::info!("Registering command for guild {:?}", g.id);
+                        self.set_commands_guild(g.id, &ctx).await;
                     }
                 }
             }

@@ -2,14 +2,13 @@ use std::{sync::atomic::Ordering, time::Duration};
 
 use anyhow::anyhow;
 use serenity::async_trait;
+
 use serenity::{
     builder::CreateApplicationCommandOption,
     client::Context,
     model::{
-        guild::Guild,
-        interactions::application_command::{
-            ApplicationCommandInteractionDataOption, ApplicationCommandOptionType,
-        },
+        application::command::CommandOptionType, guild::Guild,
+        prelude::interaction::application_command::CommandDataOption,
     },
 };
 use songbird::{id::ChannelId, Event};
@@ -24,7 +23,7 @@ impl TugboatCommand for JoinCommand {
     async fn execute(
         &self,
         ctx: &Context,
-        _options: &[ApplicationCommandInteractionDataOption],
+        _options: &[CommandDataOption],
         guild: Guild,
         channel_id: ChannelId,
     ) -> anyhow::Result<String> {
@@ -74,7 +73,7 @@ impl TugboatCommand for JoinCommand {
         CreateApplicationCommandOption::default()
             .name("join")
             .description("Join your current voice channel")
-            .kind(ApplicationCommandOptionType::SubCommand)
+            .kind(CommandOptionType::SubCommand)
             .clone()
     }
 

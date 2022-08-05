@@ -11,7 +11,7 @@ Millions of dollars of R&D, who knows how many man-hours, the sweat and tears of
 
 You will need:
 
-* Rust 1.52 or newer
+* Rust 1.56 or newer
 * Opus development libraries installed (`libopus-dev` on Debian-alikes, `opus-devel` on RHEL-alikes)
 * ffmpeg
 

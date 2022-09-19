@@ -518,10 +518,11 @@ dependencies = [
 
 [[package]]
 name = "google-texttospeech1"
-version = "3.1.0+20220228"
+version = "4.0.1+20220228"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ef58fd40ec6c1796f58cf30bf7e92e6ed5b2fcd29879db2e1692972834826a42"
+checksum = "7d868e8a7e49bb93a0fe5f85f7f559926df87b0a845d7641b270b072abf06556"
 dependencies = [
+ "http",
  "hyper",
  "hyper-rustls",
  "itertools",
@@ -529,6 +530,8 @@ dependencies = [
  "serde",
  "serde_derive",
  "serde_json",
+ "tokio",
+ "tower-service",
  "url 1.7.2",
  "yup-oauth2",
 ]
@@ -2253,9 +2256,9 @@ dependencies = [
 
 [[package]]
 name = "yup-oauth2"
-version = "6.6.0"
+version = "7.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "73b8e9dfff61fb272cffb4b4219893ab69e9b5a766e0d1958eefb14fb25dd59c"
+checksum = "98748970d2ddf05253e6525810d989740334aa7509457864048a829902db76f3"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2274,6 +2277,7 @@ dependencies = [
  "serde_json",
  "time",
  "tokio",
+ "tower-service",
  "url 2.2.2",
 ]
 

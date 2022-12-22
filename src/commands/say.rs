@@ -10,8 +10,10 @@ use std::{
 use anyhow::{anyhow, Context as anyhowContext};
 use google_texttospeech1::{
     api::{AudioConfig, SynthesisInput, SynthesizeSpeechRequest, Voice, VoiceSelectionParams},
+    hyper_rustls::HttpsConnector,
     Texttospeech,
 };
+use hyper::client::HttpConnector;
 use serde_json::Value;
 use serenity::{
     async_trait,
@@ -32,7 +34,7 @@ use super::{CommandsMap, TugboatCommand};
 
 pub struct TtsService;
 impl TypeMapKey for TtsService {
-    type Value = Texttospeech;
+    type Value = Texttospeech<HttpsConnector<HttpConnector>>;
 }
 
 pub struct Voices;

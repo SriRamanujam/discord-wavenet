@@ -4,8 +4,10 @@ use anyhow::Context as anyhowContext;
 
 use commands::CommandScope;
 use google_texttospeech1::hyper_rustls;
+use google_texttospeech1::hyper_rustls::HttpsConnector;
 use google_texttospeech1::oauth2;
 use google_texttospeech1::Texttospeech;
+use hyper::client::HttpConnector;
 use serenity::prelude::GatewayIntents;
 use serenity::{
     async_trait,
@@ -24,7 +26,9 @@ use commands::{say::*, ApplicationCommandHandler, IdleDurations};
 use crate::commands::CommandsMap;
 
 #[tracing::instrument(skip(hub))]
-async fn get_voices(hub: &Texttospeech) -> anyhow::Result<VoiceValues> {
+async fn get_voices(
+    hub: &Texttospeech<HttpsConnector<HttpConnector>>,
+) -> anyhow::Result<VoiceValues> {
     let (_, response) = hub
         .voices()
         .list()

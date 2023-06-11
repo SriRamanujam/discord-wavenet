@@ -10,7 +10,7 @@ edition = "2018"
 songbird = { version = "0.3", features = ["builtin-queue"] }
 serenity = { version = "0.11", features = ["cache", "standard_framework", "voice", "rustls_backend", "unstable_discord_api"]}
 tokio = { version = "1", features = [ "full" ]}
-anyhow = "1.0.68"
+anyhow = "1.0.71"
 tracing-subscriber = { version = "0.3.16", features = ["env-filter"] }
 tracing = "0.1.37"
 tempfile = "3.3.0"

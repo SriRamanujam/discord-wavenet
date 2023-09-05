@@ -8,6 +8,7 @@ use std::{
 };
 
 use anyhow::{anyhow, Context as anyhowContext};
+use base64::{Engine as _, engine::general_purpose};
 use google_texttospeech1::{
     api::{AudioConfig, SynthesisInput, SynthesizeSpeechRequest, Voice, VoiceSelectionParams},
     hyper_rustls::HttpsConnector,
@@ -216,7 +217,7 @@ impl TugboatCommand for SayCommand {
                 .context("Could not make TTS API call")?;
 
             match res.audio_content {
-                Some(c) => base64::decode(c).context("Could not decode base64 audio content!")?,
+                Some(c) => general_purpose::STANDARD.decode(c).context("Could not decode base64 audio content!")?,
                 None => return Err(anyhow!("No audio content returned from API!")),
             }
         };

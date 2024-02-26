@@ -316,7 +316,7 @@ dependencies = [
  "base64 0.21.5",
  "fastrand 2.0.1",
  "google-texttospeech1",
- "hyper",
+ "hyper 1.2.0",
  "serde",
  "serde_json",
  "serenity",
@@ -576,8 +576,8 @@ version = "4.0.1+20220228"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7d868e8a7e49bb93a0fe5f85f7f559926df87b0a845d7641b270b072abf06556"
 dependencies = [
- "http",
- "hyper",
+ "http 0.2.5",
+ "hyper 0.14.28",
  "hyper-rustls",
  "itertools",
  "mime 0.2.6",
@@ -601,7 +601,7 @@ dependencies = [
  "futures-core",
  "futures-sink",
  "futures-util",
- "http",
+ "http 0.2.5",
  "indexmap",
  "slab",
  "tokio",
@@ -648,14 +648,35 @@ dependencies = [
 ]
 
 [[package]]
+name = "http"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b32afd38673a8016f7c9ae69e5af41a58f81b1d31689040f2f1959594ce194ea"
+dependencies = [
+ "bytes",
+ "fnv",
+ "itoa 1.0.1",
+]
+
+[[package]]
 name = "http-body"
 version = "0.4.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1ff4f84919677303da5f147645dbea6b1881f368d03ac84e1dc09031ebd7b2c6"
 dependencies = [
  "bytes",
- "http",
+ "http 0.2.5",
  "pin-project-lite",
+]
+
+[[package]]
+name = "http-body"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1cac85db508abc24a2e48553ba12a996e87244a0395ce011e62b37158745d643"
+dependencies = [
+ "bytes",
+ "http 1.0.0",
 ]
 
 [[package]]
@@ -672,17 +693,17 @@ checksum = "c4a1e36c821dbe04574f602848a19f742f4fb3c98d40449f11bcad18d6b17421"
 
 [[package]]
 name = "hyper"
-version = "0.14.27"
+version = "0.14.28"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ffb1cfd654a8219eaef89881fdb3bb3b1cdc5fa75ded05d6933b2b382e395468"
+checksum = "bf96e135eb83a2a8ddf766e426a841d8ddd7449d5f00d34ea02b41d2f19eef80"
 dependencies = [
  "bytes",
  "futures-channel",
  "futures-core",
  "futures-util",
  "h2",
- "http",
- "http-body",
+ "http 0.2.5",
+ "http-body 0.4.4",
  "httparse",
  "httpdate",
  "itoa 1.0.1",
@@ -695,13 +716,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "hyper"
+version = "1.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "186548d73ac615b32a73aafe38fb4f56c0d340e110e5a200bcadbaf2e199263a"
+dependencies = [
+ "bytes",
+ "http 1.0.0",
+ "http-body 1.0.0",
+ "tokio",
+]
+
+[[package]]
 name = "hyper-rustls"
 version = "0.23.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d87c48c02e0dc5e3b849a2041db3029fd066650f8f717c07bf8ed78ccb895cac"
 dependencies = [
- "http",
- "hyper",
+ "http 0.2.5",
+ "hyper 0.14.28",
  "log 0.4.17",
  "rustls",
  "rustls-native-certs",
@@ -1278,9 +1311,9 @@ dependencies = [
  "encoding_rs",
  "futures-core",
  "futures-util",
- "http",
- "http-body",
- "hyper",
+ "http 0.2.5",
+ "http-body 0.4.4",
+ "hyper 0.14.28",
  "hyper-rustls",
  "ipnet",
  "js-sys",
@@ -1977,7 +2010,7 @@ dependencies = [
  "base64 0.13.1",
  "byteorder",
  "bytes",
- "http",
+ "http 0.2.5",
  "httparse",
  "log 0.4.17",
  "rand",
@@ -2447,8 +2480,8 @@ dependencies = [
  "async-trait",
  "base64 0.13.1",
  "futures",
- "http",
- "hyper",
+ "http 0.2.5",
+ "hyper 0.14.28",
  "hyper-rustls",
  "itertools",
  "log 0.4.17",
